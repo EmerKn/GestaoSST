@@ -11,17 +11,30 @@ export async function hashPassword(password: string): Promise<string> {
 }
 
 export async function loginWithCredentials(email: string, password: string): Promise<{ user: User | null, token: string | null, error: string | null }> {
+  let timeoutId: any;
   try {
     console.log("Starting login attempt for:", email);
     
     // Clear any stale session locally before attempting fresh login
     localStorage.removeItem('sst-gestao-auth');
 
-    // Call Supabase without manual timeout to see the real error if it occurs
-    const { data: { session, user: authUser }, error: signInError } = await supabase.auth.signInWithPassword({ 
+    // Create a safety timeout for the login attempt itself
+    const loginPromise = supabase.auth.signInWithPassword({ 
       email, 
       password 
     });
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error("Timeout de conexão com Supabase")), 15000);
+    });
+
+    // Race the login against a 15s timeout
+    const { data: { session, user: authUser }, error: signInError } = await Promise.race([
+      loginPromise,
+      timeoutPromise as any
+    ]);
+    
+    clearTimeout(timeoutId);
 
     if (signInError) {
       console.warn("Sign in error:", signInError);
@@ -35,7 +48,7 @@ export async function loginWithCredentials(email: string, password: string): Pro
 
     console.log("Supabase Auth success, fetching profile for ID:", authUser.id);
 
-    // Fetch profile data
+    // Fetch profile data with its own timeout
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
@@ -43,7 +56,11 @@ export async function loginWithCredentials(email: string, password: string): Pro
       .single();
 
     if (profileError || !profile) {
-      console.error("Profile not found:", profileError);
+      console.error("Profile not found or RLS error:", profileError);
+      // Log more details about the profile error if it exists
+      if (profileError) {
+        console.error("Profile error details:", JSON.stringify(profileError));
+      }
       return { user: null, token: null, error: 'Perfil de usuário não configurado no banco. O administrador precisa checar sua conta.' };
     }
 
@@ -70,8 +87,9 @@ export async function loginWithCredentials(email: string, password: string): Pro
       error: null 
     };
   } catch (err: any) {
+    if (timeoutId) clearTimeout(timeoutId);
     console.error('General login error:', err);
-    return { user: null, token: null, error: `Erro técnico: ${err.message || 'Erro desconhecido'}` };
+    return { user: null, token: null, error: `Erro técnico: ${err.message || 'Erro de rede ou conexão'}` };
   }
 }
 

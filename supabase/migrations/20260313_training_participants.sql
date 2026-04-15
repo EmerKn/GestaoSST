@@ -1,0 +1,1 @@
+ALTER TABLE trainings ADD COLUMN IF NOT EXISTS participants TEXT[] DEFAULT '{}';

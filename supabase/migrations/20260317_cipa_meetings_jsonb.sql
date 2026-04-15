@@ -1,0 +1,2 @@
+ALTER TABLE cipa_meetings ADD COLUMN IF NOT EXISTS participants JSONB;
+ALTER TABLE cipa_meetings ADD COLUMN IF NOT EXISTS topics JSONB;

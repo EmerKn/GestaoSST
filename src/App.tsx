@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import Layout from "./components/Layout";
@@ -42,12 +42,21 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const settingsFetched = useRef(false);
+
   useEffect(() => {
     const fetchSettings = async () => {
+      if (settingsFetched.current) return;
+      settingsFetched.current = true;
+      
       try {
         const { data, error } = await supabase.from('company_settings').select('sector_colors').single();
         if (error) {
-          console.warn("Failed to fetch settings, maybe table doesn't exist yet:", error);
+          // If it's an auth error, we'll try again later or let AuthContext handle it
+          if (error.code === 'PGRST116' || error.status === 406) {
+             // Not found or not authorized yet, reset for retry if auth changes
+             settingsFetched.current = false;
+          }
           return;
         }
         if (data && data.sector_colors) {
@@ -60,6 +69,7 @@ export default function App() {
         }
       } catch (err) {
         console.error("Failed to fetch settings", err);
+        settingsFetched.current = false;
       }
     };
     fetchSettings();
@@ -90,6 +100,7 @@ export default function App() {
           <Route path="agenda" element={<Agenda />} />
           <Route path="configuracoes" element={<Configuracoes />} />
           <Route path="usuarios" element={<Usuarios />} />
+          <Route path="dashboard" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     </AuthProvider>

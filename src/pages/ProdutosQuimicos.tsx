@@ -237,13 +237,24 @@ export default function ProdutosQuimicos() {
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm("Tem certeza que deseja excluir este produto?")) {
-      try {
-        await supabase.from('produtos_quimicos').delete().eq('id', id);
-        loadData();
-      } catch (error) {
+    if (!window.confirm("Tem certeza que deseja excluir este produto?")) return;
+    
+    setLoading(true);
+    try {
+      const { error } = await supabase.from('produtos_quimicos').delete().eq('id', id);
+      
+      if (error) {
         console.error("Error deleting chemical product:", error);
+        alert(`Erro ao excluir produto: ${error.message}`);
+      } else {
+        setProducts(prev => prev.filter(p => p.id !== id));
+        alert("Produto excluído com sucesso!");
       }
+    } catch (error: any) {
+      console.error("Error deleting chemical product:", error);
+      alert("Ocorreu um erro inesperado ao excluir o produto.");
+    } finally {
+      setLoading(false);
     }
   };
 

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { supabase } from '../lib/supabase';
 
@@ -16,30 +16,45 @@ export interface User {
 
 interface AuthContextType {
   user: User | null;
-  token: string | null;
-  login: (token: string, user: User) => void;
-  logout: () => void;
   loading: boolean;
   canEdit: boolean;
   canPrint: boolean;
   isMaster: boolean;
   isProprietario: boolean;
   isMobile: boolean;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('sst_token'));
   const [loading, setLoading] = useState(true);
   const isMobile = useIsMobile();
+  
+  // Ref to prevent mounting/initializing multiple times
+  const initialized = useRef(false);
+  const isFetchingProfile = useRef(false);
+  const lastFetchTime = useRef(0);
 
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+    
     let isMounted = true;
 
     const fetchProfile = async (userId: string): Promise<User | null> => {
+      // Throttle and lock to prevent infinite loops
+      if (isFetchingProfile.current) return null;
+      
+      const now = Date.now();
+      if (now - lastFetchTime.current < 2000) return null;
+
+      isFetchingProfile.current = true;
+      lastFetchTime.current = now;
+
       try {
+        console.log("AuthContext: Fetching profile for:", userId);
         const { data: profile, error } = await supabase
           .from('profiles')
           .select('*')
@@ -47,12 +62,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .single();
 
         if (error || !profile) {
-          console.error("Error fetching profile:", error);
+          console.error("AuthContext: Profile fetch error:", error);
           return null;
         }
 
-        // Check access expiration
+        // Handle expired access
         if (profile.status === 'pending_approval' && profile.access_expires_at && new Date(profile.access_expires_at) < new Date()) {
+          console.warn("AuthContext: Access expired");
           await supabase.auth.signOut();
           return null;
         }
@@ -67,59 +83,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           access_expires_at: profile.access_expires_at
         };
       } catch (err) {
-        console.error("Profile fetch error:", err);
+        console.error("AuthContext: Exception in fetchProfile:", err);
         return null;
+      } finally {
+        isFetchingProfile.current = false;
       }
     };
 
-    const checkSession = async () => {
+    const initializeAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        // Get initial session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
-        if (session?.user) {
+        if (sessionError) {
+          console.warn("AuthContext: Session error:", sessionError);
+        }
+
+        if (session?.user && isMounted) {
           const profile = await fetchProfile(session.user.id);
           if (isMounted) {
             setUser(profile);
           }
-        } else {
-          if (isMounted) setUser(null);
         }
       } catch (err) {
-        console.error('Session error:', err);
-        if (isMounted) setUser(null);
+        console.error('AuthContext: Initialization error:', err);
       } finally {
         if (isMounted) setLoading(false);
       }
     };
 
-    // Safety timeout: if loading takes more than 8 seconds, stop loading
+    // Safety timeout to ensure app doesn't stay on loading forever
     const safetyTimeout = setTimeout(() => {
       if (isMounted && loading) {
-        console.warn('Auth loading timeout reached, forcing load complete.');
+        console.warn('AuthContext: Loading safety timeout triggered');
         setLoading(false);
       }
-    }, 8000);
+    }, 12000);
 
-    checkSession();
+    initializeAuth();
 
-    // Listen for auth state changes (login/logout from other tabs, token refresh)
+    // Set up singleton listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return;
       
-      if (event === 'SIGNED_OUT') {
+      console.log("AuthContext: Auth event:", event);
+
+      if (event === 'SIGNED_OUT' || !session?.user) {
         setUser(null);
+        setLoading(false);
         return;
       }
 
-      if (session?.user) {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
         const profile = await fetchProfile(session.user.id);
-        if (isMounted) {
+        if (isMounted && profile) {
           setUser(profile);
-          setLoading(false);
-        }
-      } else {
-        if (isMounted) {
-          setUser(null);
           setLoading(false);
         }
       }
@@ -129,16 +147,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isMounted = false;
       clearTimeout(safetyTimeout);
       subscription.unsubscribe();
+      initialized.current = false;
     };
   }, []);
 
-  const login = (newToken: string, newUser: User) => {
-    setUser(newUser);
-  };
-
   const logout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+    } catch (err) {
+      console.error("Logout error:", err);
+    }
   };
 
   const isProprietario = user?.role === 'proprietario';
@@ -146,8 +165,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const canEdit = isProprietario || user?.role === 'master';
   const canPrint = canEdit || user?.role === 'operador';
 
+  const value = {
+    user,
+    loading,
+    canEdit,
+    canPrint,
+    isMaster,
+    isProprietario,
+    isMobile,
+    logout
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token: null, login, logout, loading, canEdit, canPrint, isMaster, isProprietario, isMobile }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

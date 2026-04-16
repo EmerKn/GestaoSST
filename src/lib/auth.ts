@@ -15,20 +15,17 @@ export async function loginWithCredentials(email: string, password: string): Pro
   try {
     console.log("Starting login attempt for:", email);
     
-    // Clear any stale session locally before attempting fresh login
-    localStorage.removeItem('sst-gestao-auth');
-
-    // Create a safety timeout for the login attempt itself
+    // Increase timeout to 20s for slower connections
     const loginPromise = supabase.auth.signInWithPassword({ 
       email, 
       password 
     });
 
     const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutId = setTimeout(() => reject(new Error("Timeout de conexão com Supabase")), 15000);
+      timeoutId = setTimeout(() => reject(new Error("Timeout de conexão com Supabase")), 20000);
     });
 
-    // Race the login against a 15s timeout
+    // Race the login against a 20s timeout
     const { data: { session, user: authUser }, error: signInError } = await Promise.race([
       loginPromise,
       timeoutPromise as any

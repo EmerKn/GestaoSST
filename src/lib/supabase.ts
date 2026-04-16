@@ -5,26 +5,15 @@ const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
 const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error("⚠️ Supabase credentials are not set. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.");
+  console.error("⚠️ Supabase credentials are not set.");
 }
 
-// Clear any corrupted session data on startup
-try {
-  const storageKey = 'sst-gestao-auth';
-  const stored = localStorage.getItem(storageKey);
-  if (stored) {
-    try {
-      JSON.parse(stored);
-    } catch {
-      console.warn('Corrupted auth session detected, clearing...');
-      localStorage.removeItem(storageKey);
-    }
-  }
-} catch (e) {
-  // localStorage not available
-}
+// Ensure the storage key matches across the app
+export const AUTH_STORAGE_KEY = 'sst-gestao-auth';
 
-export const supabase = createClient(
+// Create a SINGLE instance to avoid "Lock broken" AbortErrors
+// This is especially important during HMR and in StrictMode
+const supabaseInstance = createClient(
   supabaseUrl || 'https://placeholder.supabase.co', 
   supabaseAnonKey || 'placeholder',
   {
@@ -32,7 +21,10 @@ export const supabase = createClient(
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      storageKey: 'sst-gestao-auth',
+      storageKey: AUTH_STORAGE_KEY,
+      storage: window.localStorage, // Explicitly use window.localStorage
     },
   }
 );
+
+export const supabase = supabaseInstance;

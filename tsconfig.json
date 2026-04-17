@@ -23,6 +23,6 @@
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "noEmitOnError": false,
-    "ignoreDeprecations": ["5.0"]
+    "ignoreDeprecations": "5.0"
   }
 }

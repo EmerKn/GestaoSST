@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Users, Plus, FileText, Calendar, CheckCircle, Clock, AlertCircle, Upload, Printer, Download, Trash2, BarChart2, X } from "lucide-react";
-import { format, parseISO, addBusinessDays, isAfter } from "date-fns";
+import { format, parseISO, addBusinessDays, isAfter, isValid } from "date-fns";
 import SignatureCanvas from "react-signature-canvas";
 import { useReactToPrint } from "react-to-print";
 import jsPDF from "jspdf";
@@ -57,6 +57,18 @@ interface Meeting {
   participants: MeetingParticipant[];
   topics: MeetingTopic[];
 }
+
+const safeFormatDate = (dateString?: string, formatString: string = "dd/MM/yyyy") => {
+  if (!dateString) return "-";
+  const dateObj = parseISO(dateString);
+  return isValid(dateObj) ? format(dateObj, formatString) : "Data Inválida";
+};
+
+const safeIsDelayed = (dateString?: string) => {
+  if (!dateString) return false;
+  const dateObj = parseISO(dateString);
+  return isValid(dateObj) ? isAfter(new Date(), addBusinessDays(dateObj, 4)) : false;
+};
 
 export default function Cipa() {
   const { canEdit, isMobile } = useAuth();
@@ -300,11 +312,11 @@ export default function Cipa() {
     
     const tableColumn = ["Data", "Tipo", "Participantes", "Tópicos", "Status da Ata"];
     const tableRows = meetings.map(m => [
-      format(parseISO(m.date), "dd/MM/yyyy"),
+      safeFormatDate(m.date),
       m.type,
       m.participants?.length || 0,
       m.topics?.length || 0,
-      m.file_url ? "Anexada" : (isAfter(new Date(), addBusinessDays(parseISO(m.date), 4)) ? "Atrasada" : "Pendente")
+      m.file_url ? "Anexada" : (safeIsDelayed(m.date) ? "Atrasada" : "Pendente")
     ]);
     
     autoTable(doc, {
@@ -327,10 +339,10 @@ export default function Cipa() {
     
     const tableColumn = ["Data Reunião", "Tópico", "Descrição", "Prazo", "Status"];
     const tableRows = allTopics.map(t => [
-      t.meeting_date ? format(parseISO(t.meeting_date), "dd/MM/yyyy") : "-",
+      t.meeting_date ? safeFormatDate(t.meeting_date) : "-",
       t.title,
       t.description,
-      t.deadline ? format(parseISO(t.deadline), "dd/MM/yyyy") : "-",
+      t.deadline ? safeFormatDate(t.deadline) : "-",
       t.status
     ]);
     
@@ -631,7 +643,7 @@ export default function Cipa() {
                       <div>
                         <p className="font-medium text-gray-900 text-sm">{t.title}</p>
                         <p className="text-xs text-gray-600">{t.description}</p>
-                        {t.deadline && <p className="text-xs text-red-600 mt-1">Prazo: {format(parseISO(t.deadline), "dd/MM/yyyy")}</p>}
+                        {t.deadline && <p className="text-xs text-red-600 mt-1">Prazo: {safeFormatDate(t.deadline)}</p>}
                       </div>
                       <button type="button" onClick={() => setMeetingTopics(meetingTopics.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700">
                         <Trash2 className="w-4 h-4" />
@@ -658,7 +670,7 @@ export default function Cipa() {
                       <Calendar className="w-5 h-5 text-emerald-600" />
                       Reunião {meeting.type}
                     </h3>
-                    <p className="text-gray-500">{format(parseISO(meeting.date), "dd/MM/yyyy")}</p>
+                    <p className="text-gray-500">{safeFormatDate(meeting.date)}</p>
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     {meeting.file_url ? (
@@ -668,7 +680,7 @@ export default function Cipa() {
                     ) : (
                       <div className="flex items-center gap-1 text-sm bg-red-50 text-red-600 px-3 py-1 rounded-full font-medium">
                         <AlertCircle className="w-4 h-4" /> 
-                        {isAfter(new Date(), addBusinessDays(parseISO(meeting.date), 4)) ? "Ata Atrasada (> 4 dias úteis)" : "Ata Pendente"}
+                        {safeIsDelayed(meeting.date) ? "Ata Atrasada (> 4 dias úteis)" : "Ata Pendente"}
                       </div>
                     )}
                   </div>
@@ -696,7 +708,7 @@ export default function Cipa() {
                             <span className={`text-xs px-2 py-0.5 rounded-full ${t.status === 'Concluído' ? 'bg-green-100 text-green-800' : t.status === 'Em Andamento' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
                               {t.status}
                             </span>
-                            {t.deadline && <span className="text-xs text-gray-500">Prazo: {format(parseISO(t.deadline), "dd/MM/yy")}</span>}
+                            {t.deadline && <span className="text-xs text-gray-500">Prazo: {safeFormatDate(t.deadline, "dd/MM/yy")}</span>}
                           </div>
                         </li>
                       ))}
@@ -768,12 +780,12 @@ export default function Cipa() {
                     {allTopics.map((topic) => (
                       <tr key={topic.id} className="hover:bg-gray-50">
                         <td className="p-4 text-sm text-gray-600 whitespace-nowrap">
-                          {topic.meeting_date ? format(parseISO(topic.meeting_date), "dd/MM/yyyy") : "-"}
+                          {topic.meeting_date ? safeFormatDate(topic.meeting_date) : "-"}
                         </td>
                         <td className="p-4 text-sm font-medium text-gray-900">{topic.title}</td>
                         <td className="p-4 text-sm text-gray-600 max-w-xs truncate" title={topic.description}>{topic.description}</td>
                         <td className="p-4 text-sm text-gray-600 whitespace-nowrap">
-                          {topic.deadline ? format(parseISO(topic.deadline), "dd/MM/yyyy") : "-"}
+                          {topic.deadline ? safeFormatDate(topic.deadline) : "-"}
                         </td>
                         <td className="p-4 text-sm">
                           <select 

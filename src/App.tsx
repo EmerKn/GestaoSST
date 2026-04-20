@@ -53,7 +53,7 @@ export default function App() {
         const { data, error } = await supabase.from('company_settings').select('sector_colors').single();
         if (error) {
           // If it's an auth error, we'll try again later or let AuthContext handle it
-          if (error.code === 'PGRST116' || error.status === 406) {
+          if (error.code === 'PGRST116' || (error as any).status === 406) {
              // Not found or not authorized yet, reset for retry if auth changes
              settingsFetched.current = false;
           }

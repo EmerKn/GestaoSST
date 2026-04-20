@@ -228,8 +228,8 @@ export default function Cipa() {
       date: newMeeting.date,
       type: newMeeting.type,
       file_url: newMeeting.file_url,
-      participants: meetingParticipants,
-      topics: meetingTopics
+      participants: JSON.stringify(meetingParticipants),
+      topics: JSON.stringify(meetingTopics)
     }]).select();
 
     if (meetingError) {
@@ -286,7 +286,7 @@ export default function Cipa() {
       body: tableRows,
     });
 
-    let finalY = (doc as any).lastAutoTable.finalY + 20;
+    let finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 20 : currentY + 20;
     addStandardFooterToPDF(doc, settings, finalY, CIPA_LOGO_URL);
     
     const pdfDataUri = doc.output('datauristring');
@@ -313,7 +313,7 @@ export default function Cipa() {
       body: tableRows,
     });
 
-    let finalY = (doc as any).lastAutoTable.finalY + 20;
+    let finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 20 : currentY + 20;
     addStandardFooterToPDF(doc, settings, finalY, CIPA_LOGO_URL);
     
     const pdfDataUri = doc.output('datauristring');
@@ -343,7 +343,7 @@ export default function Cipa() {
       }
     });
 
-    let finalY = (doc as any).lastAutoTable.finalY + 20;
+    let finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 20 : currentY + 20;
     addStandardFooterToPDF(doc, settings, finalY, CIPA_LOGO_URL);
     
     const pdfDataUri = doc.output('datauristring');
@@ -392,7 +392,7 @@ export default function Cipa() {
       body: tableRows,
     });
 
-    let finalY = (doc as any).lastAutoTable.finalY + 20;
+    let finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 20 : currentY + 20;
     addStandardFooterToPDF(doc, settings, finalY, CIPA_LOGO_URL);
     
     const pdfDataUri = doc.output('datauristring');

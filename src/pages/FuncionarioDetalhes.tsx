@@ -21,6 +21,7 @@ interface EmployeeDetails {
   trainings: any[];
   brigadeInfo: any;
   exams: any[];
+  medication_deliveries: any[];
 }
 
 export default function FuncionarioDetalhes() {
@@ -41,12 +42,13 @@ export default function FuncionarioDetalhes() {
           
         if (empError) throw empError;
         
-        const [deliveriesRes, incidentsRes, trainingsRes, brigadeRes, examsRes] = await Promise.all([
+        const [deliveriesRes, incidentsRes, trainingsRes, brigadeRes, examsRes, medDeliveriesRes] = await Promise.all([
           supabase.from('ppe_deliveries').select('*, ppes(name, photo_url, ca)').eq('employee_id', id).order('delivery_date', { ascending: false }),
           supabase.from('incidents').select('*').eq('employee_id', id).order('date', { ascending: false }),
           supabase.from('trainings').select('*').contains('participants', [empData.name]).order('date', { ascending: false }),
           supabase.from('brigade_members').select('*').eq('employee_id', id).single(),
-          supabase.from('exams').select('*').eq('employee_id', id).order('exam_date', { ascending: false })
+          supabase.from('exams').select('*').eq('employee_id', id).order('exam_date', { ascending: false }),
+          supabase.from('medication_deliveries').select('*, medications(name, dosage)').eq('employee_id', id).order('delivery_date', { ascending: false })
         ]);
 
         const formattedTrainings = trainingsRes.data?.map(t => ({
@@ -62,7 +64,8 @@ export default function FuncionarioDetalhes() {
           incidents: incidentsRes.data || [],
           trainings: formattedTrainings,
           brigadeInfo: brigadeRes.data || null,
-          exams: examsRes.data || []
+          exams: examsRes.data || [],
+          medication_deliveries: medDeliveriesRes.data || []
         });
       } catch (error) {
         console.error("Error loading employee details:", error);
@@ -299,6 +302,36 @@ export default function FuncionarioDetalhes() {
                 </tr>
               )) : (
                 <tr><td colSpan={3} className="p-4 text-center text-gray-500 italic">Nenhum incidente registrado.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Medication Deliveries */}
+        <div className="mb-16">
+          <h3 className="text-lg font-bold text-gray-900 border-b border-gray-300 pb-2 mb-4 flex items-center gap-2">
+            <Stethoscope className="w-5 h-5 text-indigo-600" />
+            Histórico de Retirada de Medicamentos
+          </h3>
+          <table className="w-full text-sm text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-100 border-b-2 border-gray-300 text-gray-700">
+                <th className="p-2 font-bold">Data</th>
+                <th className="p-2 font-bold">Medicamento Fornecido</th>
+                <th className="p-2 font-bold text-center">Quantidade</th>
+                <th className="p-2 font-bold">Assinatura do Funcionário</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {employee.medication_deliveries && employee.medication_deliveries.length > 0 ? employee.medication_deliveries.map(md => (
+                <tr key={md.id}>
+                  <td className="p-2">{format(new Date(md.delivery_date), "dd/MM/yyyy")}</td>
+                  <td className="p-2 font-medium">{md.medications?.name} {md.medications?.dosage}</td>
+                  <td className="p-2 text-center">{md.quantity} UN</td>
+                  <td className="p-2 border-l border-gray-200"></td>
+                </tr>
+              )) : (
+                <tr><td colSpan={4} className="p-4 text-center text-gray-500 italic">Nenhum medicamento retirado.</td></tr>
               )}
             </tbody>
           </table>

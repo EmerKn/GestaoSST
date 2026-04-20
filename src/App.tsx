@@ -17,6 +17,7 @@ import Incendio from "./pages/Incendio";
 import Inspecoes from "./pages/Inspecoes";
 import Treinamentos from "./pages/Treinamentos";
 import Cipa from "./pages/Cipa";
+import Medicamentos from "./pages/Medicamentos";
 import Agenda from "./pages/Agenda";
 import Ocorrencias from "./pages/Ocorrencias";
 import Exames from "./pages/Exames";
@@ -93,6 +94,7 @@ export default function App() {
           <Route path="relatorios-5s" element={<Relatorios5S />} />
           <Route path="treinamentos" element={<Treinamentos />} />
           <Route path="cipa" element={<Cipa />} />
+          <Route path="medicamentos" element={<Medicamentos />} />
           <Route path="ocorrencias" element={<Ocorrencias />} />
           <Route path="exames" element={<Exames />} />
           <Route path="normas" element={<Normas />} />

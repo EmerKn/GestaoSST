@@ -21,7 +21,8 @@ import {
   FileSignature,
   Building2,
   FlaskConical,
-  Bell
+  Bell,
+  Pill
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useAuth } from "../contexts/AuthContext";
@@ -41,6 +42,7 @@ const navigation = [
   { name: "Relatórios 5S", href: "/relatorios-5s", icon: Trophy },
   { name: "Treinamentos", href: "/treinamentos", icon: GraduationCap },
   { name: "CIPA", href: "/cipa", icon: UsersRound },
+  { name: "Medicamentos", href: "/medicamentos", icon: Pill },
   { name: "Exames", href: "/exames", icon: Stethoscope },
   { name: "Acidentes/Incidentes", href: "/ocorrencias", icon: AlertOctagon },
   { name: "Permissão de Trabalho", href: "/permissao-trabalho", icon: FileSignature },

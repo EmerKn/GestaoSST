@@ -1,5 +1,9 @@
 import { useState, useEffect } from "react";
-import { Search, Plus, Package, X, Save, FileText, Shield, Loader2, Search as SearchIcon } from "lucide-react";
+import { Search, Plus, Package, X, Save, FileText, Shield, Loader2, Search as SearchIcon, ClipboardList, Trash2, Download } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { format, parseISO } from "date-fns";
+import { fetchSettings, addStandardHeaderToPDF, addStandardFooterToPDF, CompanySettings } from "../utils/pdfUtils";
 import { useAuth } from "../contexts/AuthContext";
 import { ImageUpload } from "../components/ImageUpload";
 import RelatorioEPI from "./RelatorioEPI";
@@ -25,7 +29,13 @@ interface PPE {
 
 export default function Epis() {
   const { canEdit, isMobile } = useAuth();
-  const [activeTab, setActiveTab] = useState<"estoque" | "relatorios">("estoque");
+  const [activeTab, setActiveTab] = useState<"estoque" | "entregas" | "relatorios">("estoque");
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [cart, setCart] = useState<{ppe_id: number; quantity: number}[]>([]);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+  const [deliveryDate, setDeliveryDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const [settings, setSettings] = useState<CompanySettings | null>(null);
   const [ppes, setPpes] = useState<PPE[]>([]);
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
@@ -58,7 +68,17 @@ export default function Epis() {
 
   useEffect(() => {
     loadPpes();
+    loadExtra();
   }, []);
+
+  const loadExtra = async () => {
+    const [empRes, setRes] = await Promise.all([
+      supabase.from('employees').select('id, name, sector, role, admission_date').eq('status', 'Ativo').order('name'),
+      fetchSettings()
+    ]);
+    if (empRes.data) setEmployees(filterRealData(empRes.data));
+    setSettings(setRes);
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });

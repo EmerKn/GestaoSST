@@ -218,6 +218,101 @@ export default function Epis() {
     }
   };
 
+  const handleAddToCart = (ppe_id: number) => {
+    setCart(prev => {
+      const existing = prev.find(item => item.ppe_id === ppe_id);
+      if (existing) {
+        return prev.map(item => item.ppe_id === ppe_id ? { ...item, quantity: item.quantity + 1 } : item);
+      }
+      return [...prev, { ppe_id, quantity: 1 }];
+    });
+  };
+
+  const handleRemoveFromCart = (ppe_id: number) => {
+    setCart(prev => prev.filter(item => item.ppe_id !== ppe_id));
+  };
+
+  const handleCheckout = async () => {
+    if (!selectedEmployeeId || cart.length === 0) return alert("Selecione um funcionário e adicione EPIs.");
+    const emp = employees.find(e => e.id.toString() === selectedEmployeeId);
+    
+    // Validar estoque primeiro
+    for (const item of cart) {
+      const ppe = ppes.find(p => p.id === item.ppe_id);
+      if (!ppe || ppe.stock < item.quantity) {
+        return alert("Estoque insuficiente para " + (ppe?.name || "EPI desconhecido"));
+      }
+    }
+
+    try {
+      const inserts = cart.map(item => ({
+        employee_id: parseInt(selectedEmployeeId),
+        ppe_id: item.ppe_id,
+        quantity: item.quantity,
+        delivery_date: deliveryDate
+      }));
+      
+      const { error } = await supabase.from('ppe_deliveries').insert(inserts);
+      if (error) throw error;
+      
+      generateReceiptPDF(emp, cart, deliveryDate);
+      setCart([]);
+      setSelectedEmployeeId("");
+      loadPpes(); 
+    } catch (err) {
+       console.error(err);
+       alert("Erro ao salvar entregas.");
+    }
+  };
+
+  const generateReceiptPDF = (emp: any, finalCart: any[], date: string) => {
+    const doc = new jsPDF();
+    let currentY = addStandardHeaderToPDF(doc, settings, "Ficha de Fornecimento de EPI");
+    
+    doc.setFontSize(10);
+    doc.text(`Funcionário: ` + emp.name, 14, currentY);
+    doc.text(`Setor: ` + emp.sector, 14, currentY + 6);
+    doc.text(`Cargo: ` + emp.role, 14, currentY + 12);
+    doc.text(`Data de Admissão: ` + (emp.admission_date ? format(parseISO(emp.admission_date), 'dd/MM/yyyy') : '-'), 14, currentY + 18);
+    currentY += 28;
+
+    const tableRows = finalCart.map(item => {
+      const ppe = ppes.find(p => p.id === item.ppe_id);
+      return [
+        format(parseISO(date), "dd/MM/yyyy"),
+        ppe?.ca || '-',
+        ppe?.name || '-',
+        ppe?.description || ppe?.commercial_name || '-',
+        item.quantity.toString()
+      ];
+    });
+
+    autoTable(doc, {
+      startY: currentY,
+      head: [["Data da Entrega", "C.A.", "EPI", "Descrição", "Qtd"]],
+      body: tableRows,
+    });
+
+    let finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 30 : currentY + 40;
+    
+    // Assinaturas
+    doc.setDrawColor(0);
+    doc.line(20, finalY, 90, finalY);
+    doc.line(120, finalY, 190, finalY);
+    doc.setFontSize(10);
+    doc.text(emp.name, 55, finalY + 5, { align: 'center' });
+    doc.text("Assinatura do Funcionário", 55, finalY + 10, { align: 'center' });
+    
+    if (settings?.resp_signature) {
+       doc.addImage(settings.resp_signature, 'PNG', 135, finalY - 20, 40, 15);
+    }
+    doc.text(settings?.resp_name || "Responsável SST", 155, finalY + 5, { align: 'center' });
+    doc.text("Assinatura do Responsável SST", 155, finalY + 10, { align: 'center' });
+
+    addStandardFooterToPDF(doc, settings, finalY + 30);
+    
+    setPdfPreviewUrl(doc.output('datauristring'));
+  };
   const filtered = ppes.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || p.ca.includes(search));
 
   return (
@@ -239,6 +334,17 @@ export default function Epis() {
           >
             <Package className="w-4 h-4" />
             <span className="hidden sm:inline">Estoque</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("entregas")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md font-medium transition ${
+              activeTab === "entregas" 
+                ? "bg-white text-emerald-700 shadow-sm" 
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            <ClipboardList className="w-4 h-4" />
+            <span className="hidden sm:inline">Entregas</span>
           </button>
           <button
             onClick={() => setActiveTab("relatorios")}
@@ -323,8 +429,93 @@ export default function Epis() {
         )}
       </div>
       </>
+      ) : activeTab === "entregas" ? (
+        <div className="space-y-6">
+           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+              <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><ClipboardList className="w-5 h-5 text-emerald-600" /> Nova Entrega de EPI</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                 <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Funcionário Destino</label>
+                    <select value={selectedEmployeeId} onChange={e => setSelectedEmployeeId(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg">
+                      <option value="">Selecione o Recebedor...</option>
+                      {employees.map(e => <option key={e.id} value={e.id}>{e.name} - {e.sector}</option>)}
+                    </select>
+                 </div>
+                 <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Data da Retirada</label>
+                    <input type="date" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg"/>
+                 </div>
+              </div>
+
+              {selectedEmployeeId && (
+                 <div className="bg-emerald-50 p-4 rounded-lg mb-6 flex flex-wrap gap-8">
+                    <div><span className="text-sm text-gray-500 block">Setor</span><span className="font-bold text-emerald-900">{employees.find(e => e.id.toString() === selectedEmployeeId)?.sector}</span></div>
+                    <div><span className="text-sm text-gray-500 block">Cargo</span><span className="font-bold text-emerald-900">{employees.find(e => e.id.toString() === selectedEmployeeId)?.role}</span></div>
+                    <div><span className="text-sm text-gray-500 block">Admissão</span><span className="font-bold text-emerald-900">{employees.find(e => e.id.toString() === selectedEmployeeId)?.admission_date ? format(parseISO(employees.find(e => e.id.toString() === selectedEmployeeId)!.admission_date), 'dd/MM/yyyy') : '-'}</span></div>
+                 </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                 {/* Catálogo */}
+                 <div>
+                    <h3 className="font-bold text-gray-800 border-b pb-2 mb-4">Catálogo Disponível ({ppes.filter(p => p.stock > 0).length})</h3>
+                    <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                       {ppes.filter(p => p.stock > 0).map(ppe => (
+                          <div key={ppe.id} className="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:border-emerald-500 transition">
+                             <div>
+                               <div className="font-bold text-sm text-gray-900">{ppe.name} <span className="text-xs font-normal text-gray-500 bg-gray-100 px-1 rounded">CA {ppe.ca}</span></div>
+                               <div className="text-xs text-gray-500">Estoque: {ppe.stock} un</div>
+                             </div>
+                             <button onClick={() => handleAddToCart(ppe.id)} className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded hover:bg-emerald-200 transition text-sm font-medium"><Plus className="w-4 h-4"/></button>
+                          </div>
+                       ))}
+                       {ppes.filter(p => p.stock > 0).length === 0 && <p className="text-sm text-gray-500 italic py-4">Não há EPIs com saldo no estoque.</p>}
+                    </div>
+                 </div>
+
+                 {/* Carrinho */}
+                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-col">
+                    <h3 className="font-bold text-gray-800 border-b pb-2 mb-4">Itens Selecionados para Entrega ({cart.length})</h3>
+                    <div className="flex-1 space-y-3 overflow-y-auto mb-4">
+                       {cart.length === 0 && <p className="text-sm text-gray-500 text-center py-8 italic">Nenhum item selecionado</p>}
+                       {cart.map((item, index) => {
+                          const ppe = ppes.find(p => p.id === item.ppe_id);
+                          return (
+                            <div key={index} className="flex justify-between items-center bg-white p-3 border border-gray-200 rounded-lg shadow-sm">
+                               <div className="flex flex-col">
+                                  <span className="font-bold text-sm text-gray-900">{ppe?.name}</span>
+                                  <span className="text-xs text-gray-500">Qtd a entregar: {item.quantity} un</span>
+                               </div>
+                               <button onClick={() => handleRemoveFromCart(item.ppe_id)} className="text-red-500 hover:bg-red-50 p-2 rounded transition"><Trash2 className="w-4 h-4"/></button>
+                            </div>
+                          );
+                       })}
+                    </div>
+                    {cart.length > 0 && <button onClick={handleCheckout} className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white font-bold py-3 rounded-lg hover:bg-emerald-700 transition shadow-sm"><Save className="w-5 h-5"/> Concluir e Gerar Recibo</button>}
+                 </div>
+              </div>
+           </div>
+        </div>
       ) : (
         <RelatorioEPI />
+      )}
+
+      {pdfPreviewUrl && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden">
+             <div className="flex justify-between items-center p-4 border-b">
+                <h2 className="text-xl font-bold">Ficha de Entrega de EPI</h2>
+                <button onClick={() => setPdfPreviewUrl(null)} className="text-gray-500 hover:text-gray-900 transition"><X className="w-6 h-6"/></button>
+             </div>
+             <iframe src={pdfPreviewUrl} className="flex-1 w-full bg-gray-100" title="PDF Ficha" />
+             <div className="p-4 border-t flex justify-end gap-3">
+                <button onClick={() => setPdfPreviewUrl(null)} className="px-4 py-2 hover:bg-gray-100 text-gray-700 font-medium rounded-lg transition">Fechar</button>
+                <a href={pdfPreviewUrl} download={`Ficha_EPI_${format(new Date(), "yyyy-MM-dd")}.pdf`} onClick={() => setPdfPreviewUrl(null)} className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition font-medium">
+                   <Download className="w-4 h-4"/> Baixar PDF
+                </a>
+             </div>
+          </div>
+        </div>
       )}
 
       {showModal && (

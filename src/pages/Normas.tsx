@@ -414,6 +414,7 @@ export default function Normas() {
           ext.text
         ];
       }),
+      headStyles: { fillColor: [0, 0, 0] },
     });
 
     addStandardFooterToPDF(doc, settings, (doc as any).lastAutoTable.finalY + 20);

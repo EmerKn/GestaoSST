@@ -128,13 +128,11 @@ export default function Relatorios5S() {
 
     doc.setTextColor(0, 0, 0);
     
-    const tableColumn = ["Setor", "Média de Pontuação", "Qtd. Inspeções"];
-    const tableRows = chartData.map(item => [item.sector, item.score.toFixed(1), item.inspections]);
-    
     autoTable(doc, {
       startY: currentY,
-      head: [tableColumn],
-      body: tableRows,
+      head: [['Setor', 'Média de Pontuação', 'Qtd. Inspeções']],
+      body: chartData.map(item => [item.sector, item.score.toFixed(1), item.inspections]),
+      headStyles: { fillColor: [0, 0, 0] }
     });
 
     let finalY = (doc as any).lastAutoTable.finalY + 20;

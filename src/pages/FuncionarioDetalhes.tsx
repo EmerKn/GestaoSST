@@ -6,6 +6,8 @@ import { format, parseISO, isBefore } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { SectorBadge } from "../utils/sectorColors";
 import { supabase } from "../lib/supabase";
+import { generatePPEReceiptPDF, fetchSettings, CompanySettings } from "../utils/pdfUtils";
+import { Download, X } from "lucide-react";
 
 interface EmployeeDetails {
   id: number;
@@ -28,6 +30,8 @@ interface EmployeeDetails {
 export default function FuncionarioDetalhes() {
   const { id } = useParams();
   const [employee, setEmployee] = useState<EmployeeDetails | null>(null);
+  const [settings, setSettings] = useState<CompanySettings | null>(null);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const componentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -73,8 +77,33 @@ export default function FuncionarioDetalhes() {
       }
     };
 
-    loadEmployeeData();
+    const loadData = async () => {
+      await loadEmployeeData();
+      const s = await fetchSettings();
+      setSettings(s);
+    };
+
+    loadData();
   }, [id]);
+
+  const handleGenerateReceipt = (date: string) => {
+    if (!employee) return;
+    
+    // Group items by date to generate a receipt for that specific batch
+    const itemsOnDate = employee.deliveries
+      .filter(d => d.delivery_date === date)
+      .map(d => ({
+        name: d.ppes?.name || 'EPI',
+        quantity: d.quantity,
+        ca: d.ppes?.ca || '-',
+        validity_date: d.ppes?.validity_date || null
+      }));
+
+    if (itemsOnDate.length === 0) return;
+
+    const doc = generatePPEReceiptPDF(settings, employee, itemsOnDate, date);
+    setPdfPreviewUrl(doc.output('datauristring'));
+  };
 
   const handlePrint = useReactToPrint({
     contentRef: componentRef,
@@ -188,7 +217,7 @@ export default function FuncionarioDetalhes() {
                 <th className="p-2 font-bold">EPI</th>
                 <th className="p-2 font-bold">CA</th>
                 <th className="p-2 font-bold text-center">Qtd</th>
-                <th className="p-2 font-bold">Assinatura do Funcionário</th>
+                <th className="p-2 font-bold text-center print:hidden">Recibo</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -205,7 +234,15 @@ export default function FuncionarioDetalhes() {
                   </td>
                   <td className="p-2">{d.ppes?.ca}</td>
                   <td className="p-2 text-center">{d.quantity}</td>
-                  <td className="p-2 border-l border-gray-200"></td>
+                  <td className="p-2 text-center print:hidden">
+                    <button 
+                      onClick={() => handleGenerateReceipt(d.delivery_date)}
+                      className="text-emerald-600 hover:text-emerald-800 transition"
+                      title="Gerar Recibo"
+                    >
+                      <FileText className="w-5 h-5" />
+                    </button>
+                  </td>
                 </tr>
               )) : (
                 <tr><td colSpan={5} className="p-4 text-center text-gray-500 italic">Nenhum EPI registrado.</td></tr>
@@ -359,6 +396,24 @@ export default function FuncionarioDetalhes() {
         </div>
 
       </div>
+
+      {pdfPreviewUrl && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden">
+             <div className="flex justify-between items-center p-4 border-b">
+                <h2 className="text-xl font-bold">Ficha de Entrega de EPI</h2>
+                <button onClick={() => setPdfPreviewUrl(null)} className="text-gray-500 hover:text-gray-900 transition"><X className="w-6 h-6"/></button>
+             </div>
+             <iframe src={pdfPreviewUrl} className="flex-1 w-full bg-gray-100" title="PDF Ficha" />
+             <div className="p-4 border-t flex justify-end gap-3">
+                <button onClick={() => setPdfPreviewUrl(null)} className="px-4 py-2 hover:bg-gray-100 text-gray-700 font-medium rounded-lg transition">Fechar</button>
+                <a href={pdfPreviewUrl} download={`Ficha_EPI_${employee.name.replace(/\s+/g, '_')}.pdf`} onClick={() => setPdfPreviewUrl(null)} className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition font-medium">
+                   <Download className="w-4 h-4"/> Baixar PDF
+                </a>
+             </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -183,6 +183,7 @@ export default function Inspecoes() {
           startY: currentY + 35,
           head: [tableColumn],
           body: tableRows,
+          headStyles: { fillColor: [0, 0, 0] },
         });
 
         let finalY = (doc as any).lastAutoTable.finalY || currentY + 35;
@@ -242,6 +243,7 @@ export default function Inspecoes() {
           startY: currentY + 35,
           head: [tableColumn],
           body: tableRows,
+          headStyles: { fillColor: [0, 0, 0] },
         });
 
         let finalY = (doc as any).lastAutoTable.finalY || currentY + 35;

@@ -34,8 +34,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   
   // Ref to prevent mounting/initializing multiple times
   const initialized = useRef(false);
-  const isFetchingProfile = useRef(false);
-  const lastFetchTime = useRef(0);
 
   useEffect(() => {
     if (initialized.current) return;
@@ -43,26 +41,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     let isMounted = true;
 
-    const fetchProfile = async (userId: string): Promise<User | null> => {
-      // Throttle and lock to prevent infinite loops
-      if (isFetchingProfile.current) return null;
-      
-      const now = Date.now();
-      if (now - lastFetchTime.current < 2000) return null;
-
-      isFetchingProfile.current = true;
-      lastFetchTime.current = now;
-
+    /**
+     * Fetch user profile with a hard timeout.
+     * Uses a fresh fetch to avoid Supabase JS client lock issues.
+     */
+    const fetchProfile = async (userId: string, accessToken: string): Promise<User | null> => {
       try {
         console.log("AuthContext: Fetching profile for:", userId);
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .single();
+        
+        const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
+        const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
 
-        if (error || !profile) {
-          console.error("AuthContext: Profile fetch error:", error);
+        // Use native fetch with AbortController for reliable timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+        const response = await fetch(
+          `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=*`,
+          {
+            headers: {
+              'apikey': supabaseAnonKey,
+              'Authorization': `Bearer ${accessToken}`,
+              'Accept': 'application/json',
+              'Accept-Profile': 'public',
+            },
+            signal: controller.signal,
+          }
+        );
+        
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          console.error("AuthContext: Profile fetch HTTP error:", response.status);
+          return null;
+        }
+
+        const data = await response.json();
+        const profile = Array.isArray(data) ? data[0] : null;
+
+        if (!profile) {
+          console.error("AuthContext: Profile not found for user:", userId);
           return null;
         }
 
@@ -73,6 +91,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return null;
         }
 
+        console.log("AuthContext: Profile loaded successfully:", profile.name);
+
         return {
           id: profile.id,
           name: profile.name,
@@ -82,11 +102,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           status: profile.status,
           access_expires_at: profile.access_expires_at
         };
-      } catch (err) {
-        console.error("AuthContext: Exception in fetchProfile:", err);
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          console.error("AuthContext: Profile fetch timed out after 8s");
+        } else {
+          console.error("AuthContext: Exception in fetchProfile:", err);
+        }
         return null;
-      } finally {
-        isFetchingProfile.current = false;
       }
     };
 
@@ -99,9 +121,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.warn("AuthContext: Session error:", sessionError);
         }
 
-        if (session?.user && isMounted) {
-          const profile = await fetchProfile(session.user.id);
-          if (isMounted) {
+        if (session?.user && session?.access_token && isMounted) {
+          const profile = await fetchProfile(session.user.id, session.access_token);
+          // Only update user if we got a valid profile — don't overwrite with null
+          if (isMounted && profile) {
             setUser(profile);
           }
         }
@@ -118,7 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.warn('AuthContext: Loading safety timeout triggered');
         setLoading(false);
       }
-    }, 12000);
+    }, 10000);
 
     initializeAuth();
 
@@ -135,9 +158,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-        const profile = await fetchProfile(session.user.id);
-        if (isMounted && profile) {
-          setUser(profile);
+        if (!session.access_token) {
+          console.error("AuthContext: No access token in session");
+          setLoading(false);
+          return;
+        }
+        
+        const profile = await fetchProfile(session.user.id, session.access_token);
+        if (isMounted) {
+          if (profile) {
+            setUser(profile);
+          }
           setLoading(false);
         }
       }

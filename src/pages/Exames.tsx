@@ -404,6 +404,7 @@ export default function Exames() {
       startY: currentY,
       head: [["Setor", "Total de Exames"]],
       body: Object.entries(examsBySector).sort((a, b) => b[1] - a[1]),
+      headStyles: { fillColor: [0, 0, 0] }
     });
 
     currentY = (doc as any).lastAutoTable.finalY + 15;

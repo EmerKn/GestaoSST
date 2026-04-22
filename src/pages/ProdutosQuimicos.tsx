@@ -277,6 +277,7 @@ export default function ProdutosQuimicos() {
       startY: currentY + 10,
       head: [tableColumn],
       body: tableRows,
+      headStyles: { fillColor: [0, 0, 0] },
       columnStyles: {
         2: { cellWidth: 60 },
         3: { cellWidth: 40 }

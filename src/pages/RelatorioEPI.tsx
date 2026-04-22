@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Shield, Loader2, ArrowUpRight, BarChart2, Download, TrendingUp, X } from 'lucide-react';
+import { Package, Shield, Loader2, ArrowUpRight, BarChart2, Download, TrendingUp, X, ClipboardList } from 'lucide-react';
 import { format, parseISO, startOfMonth, startOfYear } from 'date-fns';
-import { fetchSettings, CompanySettings, addStandardHeaderToPDF, addStandardFooterToPDF } from '../utils/pdfUtils';
+import { fetchSettings, CompanySettings, addStandardHeaderToPDF, addStandardFooterToPDF, addPPEReceiptPageToPDF } from '../utils/pdfUtils';
 import { supabase } from '../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import jsPDF from 'jspdf';
@@ -31,6 +31,7 @@ export default function RelatorioEPI() {
   const [deliveries, setDeliveries] = useState<PPEDelivery[]>([]);
   const [settings, setSettings] = useState<CompanySettings | null>(null);
   const [reportPeriod, setReportPeriod] = useState<"mensal" | "anual">("mensal");
+  const [reportDate, setReportDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -115,6 +116,7 @@ export default function RelatorioEPI() {
       startY: currentY,
       head: [["Setor Destino", "Total Unidades Retiradas"]],
       body: sectorData.map(s => [s.setor, s.entregas.toString()]),
+      headStyles: { fillColor: [0, 0, 0] }, // Black header
       margin: { bottom: 20 }
     });
 
@@ -127,6 +129,7 @@ export default function RelatorioEPI() {
       startY: currentY,
       head: [["Equipamento / EPI", "Qtd. Total", "Custo T. (R$)"]],
       body: topPpes.map(item => [item.name, item.quantity.toString(), `R$ ${item.totalR$.toFixed(2).replace('.', ',')}`]),
+      headStyles: { fillColor: [0, 0, 0] }, // Black header
       margin: { bottom: 20 }
     });
 
@@ -150,6 +153,55 @@ export default function RelatorioEPI() {
 
     addStandardFooterToPDF(doc, settings, finalY + 30);
     
+    setPdfPreviewUrl(doc.output('datauristring'));
+  };
+
+  const handleGenerateDateReport = () => {
+    const dailyDeliveries = deliveries.filter(d => d.delivery_date === reportDate);
+    
+    if (dailyDeliveries.length === 0) {
+      alert("Nenhuma entrega encontrada nesta data.");
+      return;
+    }
+
+    // Group by Employee
+    const employeeGroups: Record<number, any[]> = {};
+    dailyDeliveries.forEach(d => {
+      if (!employeeGroups[d.employee_id]) employeeGroups[d.employee_id] = [];
+      employeeGroups[d.employee_id].push(d);
+    });
+
+    const doc = new jsPDF();
+    const empIds = Object.keys(employeeGroups);
+    
+    empIds.forEach((empIdStr, index) => {
+      if (index > 0) doc.addPage();
+      
+      const empId = parseInt(empIdStr);
+      const group = employeeGroups[empId];
+      const empData = group[0].employees;
+      
+      // Enrich with extra employee data if available or just use what we have
+      const fullEmpData = {
+        name: empData?.name || 'Funcionário',
+        sector: empData?.sector || '-',
+        role: empData?.role || '-', // Note: we might need to fetch full employee data if 'role' is missing in this join
+        admission_date: empData?.admission_date || null
+      };
+
+      const items = group.map(d => {
+        const ppeData = ppes.find(p => p.id === d.ppe_id);
+        return {
+          name: d.ppes?.name || 'EPI',
+          quantity: d.quantity,
+          ca: ppeData?.ca || '-',
+          validity_date: ppeData?.validity_date || null
+        };
+      });
+
+      addPPEReceiptPageToPDF(doc, settings, fullEmpData, items, reportDate);
+    });
+
     setPdfPreviewUrl(doc.output('datauristring'));
   };
 
@@ -248,6 +300,34 @@ export default function RelatorioEPI() {
                 </tbody>
               </table>
            </div>
+        </div>
+      </div>
+
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <ClipboardList className="w-5 h-5 text-emerald-600" />
+          Relatório de Entregas por Data (Com Assinaturas)
+        </h3>
+        <div className="flex flex-col sm:flex-row items-end gap-4">
+          <div className="w-full sm:w-48">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Selecionar Data</label>
+            <input 
+              type="date" 
+              value={reportDate} 
+              onChange={(e) => setReportDate(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded-lg"
+            />
+          </div>
+          <button 
+            onClick={handleGenerateDateReport}
+            className="flex items-center gap-2 px-6 py-2 bg-slate-800 text-white rounded-lg font-medium hover:bg-slate-900 transition"
+          >
+            <Download className="w-4 h-4" />
+            Gerar Folhas de Entrega do Dia
+          </button>
+          <p className="text-xs text-gray-500 mb-2">
+            * Gera um arquivo PDF com uma folha de recibo para cada funcionário que retirou EPIs nesta data.
+          </p>
         </div>
       </div>
 

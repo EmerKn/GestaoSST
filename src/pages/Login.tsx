@@ -25,13 +25,13 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const { user: loggedInUser, error: loginError } = await loginWithCredentials(email, password);
+      const { error: loginError } = await loginWithCredentials(email, password);
 
       if (loginError) {
         setError(loginError);
-      } else if (loggedInUser) {
-        navigate("/");
       }
+      // Navigation is handled by the useEffect that watches AuthContext's user state.
+      // This prevents the race condition where navigate fires before AuthContext processes the SIGNED_IN event.
     } catch (err) {
       setError("Erro de conexão com o servidor");
     } finally {

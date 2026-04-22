@@ -143,14 +143,17 @@ export default function Medicamentos() {
       format(parseISO(d.delivery_date), "dd/MM/yyyy"),
       `${d.medications?.name} ${d.medications?.dosage || ''}`.trim(),
       d.employees?.name || '-',
-      d.employees?.sector || '-',
-      d.quantity
-    ]);
-
     autoTable(doc, {
       startY: currentY,
-      head: [tableColumn],
-      body: tableRows,
+      head: [['Data', 'Medicamento', 'Funcionário', 'Setor', 'Qtd']],
+      body: filteredDeliveries.map(d => [
+        format(parseISO(d.delivery_date), "dd/MM/yyyy"),
+        `${d.medications?.name} ${d.medications?.dosage || ''}`.trim(),
+        d.employees?.name || '-',
+        d.employees?.sector || '-',
+        d.quantity
+      ]),
+      headStyles: { fillColor: [0, 0, 0] }
     });
 
     let finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 20 : currentY + 20;

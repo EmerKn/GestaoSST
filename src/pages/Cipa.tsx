@@ -296,6 +296,7 @@ export default function Cipa() {
       startY: currentY + 10,
       head: [tableColumn],
       body: tableRows,
+      headStyles: { fillColor: [0, 0, 0] },
     });
 
     let finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 20 : currentY + 20;
@@ -323,6 +324,7 @@ export default function Cipa() {
       startY: currentY + 10,
       head: [tableColumn],
       body: tableRows,
+      headStyles: { fillColor: [0, 0, 0] },
     });
 
     let finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 20 : currentY + 20;
@@ -350,6 +352,7 @@ export default function Cipa() {
       startY: currentY + 10,
       head: [tableColumn],
       body: tableRows,
+      headStyles: { fillColor: [0, 0, 0] },
       columnStyles: {
         2: { cellWidth: 60 } // Make description column wider
       }
@@ -402,6 +405,7 @@ export default function Cipa() {
       startY: currentY + 20,
       head: [tableColumn],
       body: tableRows,
+      headStyles: { fillColor: [0, 0, 0] },
     });
 
     let finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 20 : currentY + 20;

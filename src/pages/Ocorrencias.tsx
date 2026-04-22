@@ -308,6 +308,7 @@ export default function Ocorrencias() {
         accidentsByMonth[i],
         incidentsByMonth[i]
       ]),
+      headStyles: { fillColor: [0, 0, 0] }
     });
 
     currentY = (doc as any).lastAutoTable.finalY + 10;
@@ -316,6 +317,7 @@ export default function Ocorrencias() {
       startY: currentY,
       head: [["Setor", "Total de Acidentes"]],
       body: Object.entries(accidentsBySector).sort((a, b) => b[1] - a[1]),
+      headStyles: { fillColor: [0, 0, 0] }
     });
 
     currentY = (doc as any).lastAutoTable.finalY + 10;
@@ -324,6 +326,7 @@ export default function Ocorrencias() {
       startY: currentY,
       head: [["Turno", "Acidentes", "Incidentes"]],
       body: Object.entries(occurrencesByShift).map(([shift, counts]) => [shift, counts.Acidente, counts.Incidente]),
+      headStyles: { fillColor: [0, 0, 0] }
     });
 
     currentY = (doc as any).lastAutoTable.finalY + 10;
@@ -332,6 +335,7 @@ export default function Ocorrencias() {
       startY: currentY,
       head: [["Top 5 Lesões (Acidentes)", "Total"]],
       body: top5Injuries,
+      headStyles: { fillColor: [0, 0, 0] }
     });
 
     currentY = (doc as any).lastAutoTable.finalY + 10;
@@ -340,6 +344,7 @@ export default function Ocorrencias() {
       startY: currentY,
       head: [["Top 5 Causas Raiz", "Total"]],
       body: top5Causes,
+      headStyles: { fillColor: [0, 0, 0] }
     });
 
     addStandardFooterToPDF(doc, settings, (doc as any).lastAutoTable.finalY + 20);

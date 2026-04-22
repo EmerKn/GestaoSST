@@ -186,8 +186,7 @@ export default function Treinamentos() {
     
     const averageScore = evals.length > 0 ? Math.round(totalScore / evals.length) : 0;
 
-    doc.setFontSize(20);
-    doc.text("Relatório de Avaliação de Treinamento", 14, 22);
+    let currentY = addStandardHeaderToPDF(doc, null, "Relatório de Avaliação de Treinamento");
     
     doc.setFontSize(12);
     doc.text(`Curso: ${training.title}`, 14, 35);
@@ -211,11 +210,9 @@ export default function Treinamentos() {
       startY: currentY + 25,
       head: [['Avaliador', 'Tipo', 'Nota (0-100)', 'Comentários']],
       body: evals.map(e => [
-        e.evaluator_name || 'Anônimo',
-        e.evaluator_type === 'participant' ? 'Participante' : 'Resp. SST',
-        calculateEvalScore(e).toString(),
         e.comments || '-'
       ]),
+      headStyles: { fillColor: [0, 0, 0] },
     });
     
     const photos = evals.filter(e => e.photo_url).map(e => e.photo_url);
@@ -250,9 +247,7 @@ export default function Treinamentos() {
       return;
     }
 
-    const doc = new jsPDF();
-    doc.setFontSize(20);
-    doc.text(`Relatório Anual de Treinamentos - ${currentYear}`, 14, 22);
+    let currentY = addStandardHeaderToPDF(doc, null, `Relatório Anual de Treinamentos - ${currentYear}`);
 
     // Trainings by month
     const trainingsByMonth = Array(12).fill(0);
@@ -271,6 +266,7 @@ export default function Treinamentos() {
       startY: 40,
       head: [['Mês', 'Quantidade']],
       body: monthData,
+      headStyles: { fillColor: [0, 0, 0] },
     });
 
     // Best and Worst Trainings

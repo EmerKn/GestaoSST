@@ -315,14 +315,14 @@ export default function RelatoriosInspecoes() {
       <div ref={printRef} className="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
         
         {/* Print Header */}
-        <div className="hidden print:flex justify-between items-center border-b-2 border-gray-800 pb-4 mb-8">
+        <div className="hidden print:flex justify-between items-center border-b-4 border-black pb-4 mb-8">
           <div className="flex items-center gap-4">
             {settings?.company_logo && (
               <img src={settings.company_logo} alt="Logo" className="h-16 object-contain" referrerPolicy="no-referrer" />
             )}
             <div>
-              <h1 className="text-2xl font-bold uppercase tracking-wider">{settings?.company_name || "Sistema de Gestão SST"}</h1>
-              <p className="text-sm text-gray-600">Relatório Analítico de Inspeções de Segurança</p>
+              <h1 className="text-2xl font-extrabold uppercase tracking-wider text-black">{settings?.company_name || "Sistema de Gestão SST"}</h1>
+              <p className="text-md font-bold text-red-600 uppercase">Relatório Analítico de Inspeções de Segurança</p>
             </div>
           </div>
           <div className="text-right text-sm">

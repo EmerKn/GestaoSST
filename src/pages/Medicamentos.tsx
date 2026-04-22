@@ -138,11 +138,6 @@ export default function Medicamentos() {
     doc.text(`Período de Análise a partir de: ${format(periodStart, "dd/MM/yyyy")}`, 14, currentY);
     currentY += 10;
 
-    const tableColumn = ["Data", "Medicamento", "Funcionário", "Setor", "Qtd"];
-    const tableRows = filteredDeliveries.map(d => [
-      format(parseISO(d.delivery_date), "dd/MM/yyyy"),
-      `${d.medications?.name} ${d.medications?.dosage || ''}`.trim(),
-      d.employees?.name || '-',
     autoTable(doc, {
       startY: currentY,
       head: [['Data', 'Medicamento', 'Funcionário', 'Setor', 'Qtd']],

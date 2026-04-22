@@ -210,7 +210,7 @@ export default function RelatoriosInspecoes() {
   const generateAIAnalysis = async () => {
     setAnalyzing(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'missing_key' });
+      const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || 'missing_key' });
       
       const promptData = {
         timeframe,

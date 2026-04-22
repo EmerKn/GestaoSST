@@ -11,7 +11,7 @@ import { supabase } from "../lib/supabase";
 import { filterRealData } from "./Funcionarios";
 import { GoogleGenAI, Type } from '@google/genai';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'missing_key' });
+const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || 'missing_key' });
 
 interface PPE {
   id: number;

@@ -195,7 +195,7 @@ export default function Treinamentos() {
     doc.text(`Carga Horária: ${training.workload || 0} horas`, 14, 56);
     doc.text(`Participantes Inscritos: ${training.enrolled}`, 14, 63);
     
-    let currentY = 70;
+    currentY = 70;
     if (training.participants && training.participants.length > 0) {
       doc.text(`Funcionários Participantes: ${training.participants.join(', ')}`, 14, currentY, { maxWidth: 180 });
       currentY += Math.ceil(training.participants.join(', ').length / 90) * 7;
@@ -247,6 +247,7 @@ export default function Treinamentos() {
       return;
     }
 
+    const doc = new jsPDF();
     let currentY = addStandardHeaderToPDF(doc, null, `Relatório Anual de Treinamentos - ${currentYear}`);
 
     // Trainings by month

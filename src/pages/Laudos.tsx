@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { fetchSettings, CompanySettings } from '../utils/pdfUtils';
 import { GoogleGenAI, Type } from '@google/genai';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'missing_key' });
+const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || 'missing_key' });
 
 interface ActionItem {
   id: string;

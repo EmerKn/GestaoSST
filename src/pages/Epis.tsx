@@ -267,50 +267,184 @@ export default function Epis() {
 
   const generateReceiptPDF = (emp: any, finalCart: any[], date: string) => {
     const doc = new jsPDF();
-    let currentY = addStandardHeaderToPDF(doc, settings, "Ficha de Fornecimento de EPI");
-    
-    doc.setFontSize(10);
-    doc.text(`Funcionário: ` + emp.name, 14, currentY);
-    doc.text(`Setor: ` + emp.sector, 14, currentY + 6);
-    doc.text(`Cargo: ` + emp.role, 14, currentY + 12);
-    doc.text(`Data de Admissão: ` + (emp.admission_date ? format(parseISO(emp.admission_date), 'dd/MM/yyyy') : '-'), 14, currentY + 18);
-    currentY += 28;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 14;
+    const contentWidth = pageWidth - (margin * 2);
 
-    const tableRows = finalCart.map(item => {
+    // 1. Header Box (Grid)
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.5);
+    doc.rect(margin, 10, contentWidth, 30); // Main header box
+    
+    // Vertical lines for header grid
+    doc.line(margin + 40, 10, margin + 40, 40); // After Logo
+    doc.line(margin + 150, 10, margin + 150, 40); // Before "Código"
+
+    // Logo
+    if (settings?.company_logo) {
+      try {
+        doc.addImage(settings.company_logo, "PNG", margin + 5, 12, 30, 26, undefined, 'FAST');
+      } catch (e) {
+        console.warn("Could not add logo", e);
+      }
+    }
+
+    // Company and Title
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text(settings?.company_name || "SST GESTÃO", margin + 95, 18, { align: 'center' });
+    doc.setFontSize(12);
+    doc.text("Controle de Equipamentos de", margin + 95, 26, { align: 'center' });
+    doc.text("Proteção Individual (EPIs)", margin + 95, 32, { align: 'center' });
+
+    // Código box
+    doc.setFontSize(10);
+    doc.text("Código", margin + 152, 15);
+
+    // 2. Employee Info Box
+    doc.rect(margin, 40, contentWidth, 40);
+    doc.line(margin, 50, margin + contentWidth, 50); // Row 1 line
+    doc.line(margin, 60, margin + contentWidth, 60); // Row 2 line
+    doc.line(margin, 70, margin + contentWidth, 70); // Row 3 line
+    
+    // Sub-dividers for employee info
+    doc.line(margin + 80, 50, margin + 80, 60); // Setor | Função divider
+    doc.line(margin + 80, 60, margin + 80, 70); // Admissão | Demissão divider
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    
+    // Row 1: Nome
+    doc.setFont("helvetica", "bold");
+    doc.text("Nome:", margin + 2, 46);
+    doc.setFont("helvetica", "normal");
+    doc.text(emp.name, margin + 15, 46);
+
+    // Row 2: Setor | Função
+    doc.setFont("helvetica", "bold");
+    doc.text("Setor:", margin + 2, 56);
+    doc.setFont("helvetica", "normal");
+    doc.text(emp.sector || "-", margin + 15, 56);
+    
+    doc.setFont("helvetica", "bold");
+    doc.text("Função:", margin + 82, 56);
+    doc.setFont("helvetica", "normal");
+    doc.text(emp.role || "-", margin + 100, 56);
+
+    // Row 3: Admissão | Demissão
+    doc.setFont("helvetica", "bold");
+    doc.text("ADMISSÃO:", margin + 2, 66);
+    doc.setFont("helvetica", "normal");
+    doc.text(emp.admission_date ? format(parseISO(emp.admission_date), 'dd/MM/yyyy') : "-", margin + 25, 66);
+
+    doc.setFont("helvetica", "bold");
+    doc.text("DEMISSÃO:", margin + 82, 66);
+    doc.setFont("helvetica", "normal");
+    doc.text(emp.termination_date ? format(parseISO(emp.termination_date), 'dd/MM/yyyy') : "-", margin + 105, 66);
+
+    // Row 4: Responsável
+    doc.setFont("helvetica", "bold");
+    doc.text("Responsável legal (quando menor):", margin + 2, 76);
+
+    // 3. Declaration Text
+    const declText = `RECEBI da ${settings?.company_name || 'EMPRESA'} os EPIs abaixo relacionados, para serem usados no desempenho de minhas funções. DECLARO que estou ciente de que o uso desses EPIs é obrigatório, e que a não uso implicará insubordinação e aplicação das penalidades disciplinares previstas em lei. DECLARO que estou ciente de minhas responsabilidades e me comprometo a usar adequadamente e a zelar pela conservação dos EPIs recebidos, bem como a indenizar à ${settings?.company_name || 'EMPRESA'} o valor correspondente ao EPI recebido em caso comprovados danos dentro de prazo de validade, perda ou extravio do EPI. DECLARO que recebi o treinamento e orientações corretas referente ao uso e conservação do E.P.I segundo as Normas de Segurança do Trabalho e comprometo-me a segui-los. Fiz a leitura do presente documento quando o recebi, e minha assinatura e rubrica, apostas no local indicado no cartão, confirmam a minha concordância com os termos acima.`;
+    
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text("Recibo de Equipamento de Proteção Individual (EPI)", margin + contentWidth / 2, 88, { align: 'center' });
+    
+    doc.setFont("helvetica", "normal");
+    const splitDecl = doc.splitTextToSize(declText, contentWidth - 4);
+    doc.text(splitDecl, margin + 2, 94, { align: 'justify' });
+
+    // 4. Items Table
+    const tableRows = finalCart.map((item, index) => {
       const ppe = ppes.find(p => p.id === item.ppe_id);
       return [
-        format(parseISO(date), "dd/MM/yyyy"),
-        ppe?.ca || '-',
         ppe?.name || '-',
-        ppe?.description || ppe?.commercial_name || '-',
-        item.quantity.toString()
+        (index + 1).toString(),
+        item.quantity.toString(),
+        format(parseISO(date), "dd/MM/yyyy"),
+        "", // Devolução
+        "", // Rubrica
+        ppe?.ca || '-'
       ];
     });
 
+    // Fill empty rows to match the image style (optional but looks more "official")
+    while (tableRows.length < 15) {
+      tableRows.push(["", (tableRows.length + 1).toString(), "", "", "", "", ""]);
+    }
+
     autoTable(doc, {
-      startY: currentY,
-      head: [["Data da Entrega", "C.A.", "EPI", "Descrição", "Qtd"]],
+      startY: 120,
+      head: [["EQUIPAMENTO", "N.º", "QTD", "Recebi", "Devolução", "Rubrica", "C.A."]],
       body: tableRows,
+      theme: 'grid',
+      headStyles: { 
+        fillColor: [240, 240, 240], 
+        textColor: [0, 0, 0], 
+        fontSize: 8, 
+        halign: 'center',
+        cellPadding: 1,
+        lineWidth: 0.1
+      },
+      styles: { 
+        fontSize: 8, 
+        textColor: [0, 0, 0],
+        cellPadding: 1,
+        lineWidth: 0.1,
+        lineColor: [0, 0, 0],
+        halign: 'center',
+        valign: 'middle'
+      },
+      columnStyles: {
+        0: { halign: 'left', cellWidth: 70 }, // Equipamento
+        1: { cellWidth: 10 }, // N.º
+        2: { cellWidth: 10 }, // QTD
+        3: { cellWidth: 20 }, // Recebi
+        4: { cellWidth: 20 }, // Devolução
+        5: { cellWidth: 25 }, // Rubrica
+        6: { cellWidth: 20 }  // C.A.
+      },
+      margin: { left: margin, right: margin }
     });
 
-    let finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 30 : currentY + 40;
+    let finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 20 : 250;
     
-    // Assinaturas
-    doc.setDrawColor(0);
-    doc.line(20, finalY, 90, finalY);
-    doc.line(120, finalY, 190, finalY);
+    // Check if signature section fits on page
+    if (finalY > 260) {
+      doc.addPage();
+      finalY = 30;
+    }
+
+    // 5. Signatures
     doc.setFontSize(10);
-    doc.text(emp.name, 55, finalY + 5, { align: 'center' });
-    doc.text("Assinatura do Funcionário", 55, finalY + 10, { align: 'center' });
+    doc.setLineWidth(0.5);
+    
+    // Collaborator Signature
+    doc.line(margin + 30, finalY + 15, margin + 180, finalY + 15);
+    doc.text(`Assinatura colaborador:`, margin, finalY + 14);
+
+    // Company Responsible Signature
+    const respY = finalY + 40;
+    if (respY > 280) {
+       doc.addPage();
+       finalY = 20;
+    }
     
     if (settings?.resp_signature) {
-       doc.addImage(settings.resp_signature, 'PNG', 135, finalY - 20, 40, 15);
+       try {
+         doc.addImage(settings.resp_signature, 'PNG', margin + contentWidth / 2 - 25, respY - 18, 50, 15);
+       } catch (e) {
+         console.warn("Signature error", e);
+       }
     }
-    doc.text(settings?.resp_name || "Responsável SST", 155, finalY + 5, { align: 'center' });
-    doc.text("Assinatura do Responsável SST", 155, finalY + 10, { align: 'center' });
+    doc.line(margin + 50, respY, margin + 140, respY);
+    doc.text(settings?.resp_name || "Responsável SST", margin + 95, respY + 5, { align: 'center' });
+    doc.setFontSize(8);
+    doc.text(settings?.resp_role || "Representante da Empresa", margin + 95, respY + 10, { align: 'center' });
 
-    addStandardFooterToPDF(doc, settings, finalY + 30);
-    
     setPdfPreviewUrl(doc.output('datauristring'));
   };
   const filtered = ppes.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || p.ca.includes(search));

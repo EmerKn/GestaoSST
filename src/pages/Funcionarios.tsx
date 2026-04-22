@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Search, Plus, FileText, X, UserPlus, Camera, Upload, Trash2 } from "lucide-react";
+import { Search, Plus, FileText, X, UserPlus, Camera, Upload, Trash2, Edit2 } from "lucide-react";
 import { SectorBadge } from "../utils/sectorColors";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
@@ -27,6 +27,7 @@ interface Employee {
   shift: string;
   photo_url: string;
   admission_date: string;
+  termination_date?: string;
 }
 
 export default function Funcionarios() {
@@ -43,8 +44,10 @@ export default function Funcionarios() {
     sector: "",
     shift: "",
     photo_url: "",
-    admission_date: ""
+    admission_date: "",
+    termination_date: ""
   });
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   const canEditPage = canEdit && !isMobile;
 
@@ -69,10 +72,15 @@ export default function Funcionarios() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const { error } = await supabase.from('employees').insert([formData]);
-      if (error) throw error;
-      
-      alert("Funcionário cadastrado com sucesso!");
+      if (editingId) {
+        const { error } = await supabase.from('employees').update(formData).eq('id', editingId);
+        if (error) throw error;
+        alert("Funcionário atualizado com sucesso!");
+      } else {
+        const { error } = await supabase.from('employees').insert([formData]);
+        if (error) throw error;
+        alert("Funcionário cadastrado com sucesso!");
+      }
       setShowAddModal(false);
       setFormData({
         name: "",
@@ -81,13 +89,30 @@ export default function Funcionarios() {
         sector: "",
         shift: "",
         photo_url: "",
-        admission_date: ""
+        admission_date: "",
+        termination_date: ""
       });
+      setEditingId(null);
       fetchEmployees();
     } catch (error) {
       console.error("Error saving employee:", error);
       alert("Erro ao salvar funcionário.");
     }
+  };
+
+  const handleEdit = (emp: Employee) => {
+    setFormData({
+      name: emp.name,
+      cpf: emp.cpf,
+      role: emp.role,
+      sector: emp.sector,
+      shift: emp.shift,
+      photo_url: emp.photo_url,
+      admission_date: emp.admission_date,
+      termination_date: emp.termination_date || ""
+    });
+    setEditingId(emp.id);
+    setShowAddModal(true);
   };
 
   const filtered = employees.filter(e => e.name.toLowerCase().includes(search.toLowerCase()));
@@ -148,7 +173,16 @@ export default function Funcionarios() {
                     <SectorBadge sector={emp.sector} />
                   </td>
                   <td className="p-4 text-gray-700">{emp.shift}</td>
-                  <td className="p-4 text-right">
+                  <td className="p-4 text-right flex items-center justify-end gap-2">
+                    {canEditPage && (
+                      <button 
+                        onClick={() => handleEdit(emp)}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition text-sm font-medium"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                        Editar
+                      </button>
+                    )}
                     <Link 
                       to={`/funcionarios/${emp.id}`}
                       className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-md hover:bg-emerald-100 transition text-sm font-medium"
@@ -177,9 +211,9 @@ export default function Funcionarios() {
             <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
               <h3 className="text-xl font-bold flex items-center gap-2">
                 <UserPlus className="w-6 h-6 text-emerald-600" />
-                Novo Funcionário
+                {editingId ? "Editar Funcionário" : "Novo Funcionário"}
               </h3>
-              <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => { setShowAddModal(false); setEditingId(null); }} className="text-gray-400 hover:text-gray-600">
                 <X className="w-6 h-6" />
               </button>
             </div>
@@ -252,6 +286,16 @@ export default function Funcionarios() {
                     className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 placeholder:text-gray-400"
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Data de Demissão (Opcional)</label>
+                  <input 
+                    type="date" 
+                    name="termination_date"
+                    value={formData.termination_date}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 placeholder:text-gray-400"
+                  />
+                </div>
                 <div className="md:col-span-2">
                   <ImageUpload
                     label="Foto do Funcionário (Opcional)"
@@ -268,9 +312,9 @@ export default function Funcionarios() {
               </div>
 
               <div className="flex justify-end gap-3 pt-6 border-t border-gray-100">
-                <button 
+                  <button 
                   type="button"
-                  onClick={() => setShowAddModal(false)}
+                  onClick={() => { setShowAddModal(false); setEditingId(null); }}
                   className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition"
                 >
                   Cancelar
@@ -279,7 +323,7 @@ export default function Funcionarios() {
                   type="submit"
                   className="px-4 py-2 bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg font-medium transition"
                 >
-                  Salvar Funcionário
+                  {editingId ? "Salvar Alterações" : "Salvar Funcionário"}
                 </button>
               </div>
             </form>

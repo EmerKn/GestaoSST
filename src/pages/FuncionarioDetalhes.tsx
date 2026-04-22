@@ -16,6 +16,7 @@ interface EmployeeDetails {
   shift: string;
   photo_url: string;
   admission_date: string;
+  termination_date?: string;
   deliveries: any[];
   incidents: any[];
   trainings: any[];
@@ -154,6 +155,12 @@ export default function FuncionarioDetalhes() {
               <p className="text-gray-500 font-medium uppercase text-xs">Admissão</p>
               <p className="font-medium text-gray-900">{format(new Date(employee.admission_date), "dd/MM/yyyy")}</p>
             </div>
+            {employee.termination_date && (
+              <div>
+                <p className="text-gray-500 font-medium uppercase text-xs text-red-600">Demissão</p>
+                <p className="font-bold text-red-600">{format(new Date(employee.termination_date), "dd/MM/yyyy")}</p>
+              </div>
+            )}
           </div>
         </div>
 

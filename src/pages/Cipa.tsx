@@ -72,7 +72,7 @@ const safeIsDelayed = (dateString?: string) => {
 
 export default function Cipa() {
   const { canEdit, isMobile } = useAuth();
-  const canEditPage = canEdit && !isMobile;
+  const canEditPage = canEdit;
 
   const [activeTab, setActiveTab] = useState<"members" | "meetings" | "topics" | "reports">("members");
   const [employees, setEmployees] = useState<Employee[]>([]);

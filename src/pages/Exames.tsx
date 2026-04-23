@@ -49,7 +49,7 @@ interface Exam {
 
 export default function Exames() {
   const { canEdit, isMobile } = useAuth();
-  const canEditPage = canEdit && !isMobile;
+  const canEditPage = canEdit;
 
   const [activeTab, setActiveTab] = useState<"list" | "reports" | "pcmso">("list");
   const [exams, setExams] = useState<Exam[]>([]);

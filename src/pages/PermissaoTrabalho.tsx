@@ -74,7 +74,7 @@ const PRECAUTIONS_LIST = [
 
 export default function PermissaoTrabalho() {
   const { canEdit, canPrint, isMobile } = useAuth();
-  const canEditPage = canEdit && !isMobile;
+  const canEditPage = canEdit;
 
   const [activeTab, setActiveTab] = useState<"list" | "reports">("list");
   const [permits, setPermits] = useState<WorkPermit[]>([]);
@@ -354,7 +354,7 @@ export default function PermissaoTrabalho() {
                   onClick={() => setExpandedId(expandedId === permit.id ? null : permit.id)}
                 >
                   <div className="flex items-center gap-4">
-                    <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg hidden sm:block">
+                    <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
                       <FileSignature className="w-6 h-6" />
                     </div>
                     <div>

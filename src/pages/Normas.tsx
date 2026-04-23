@@ -106,7 +106,7 @@ const flowchartTemplate = `
 
 export default function Normas() {
   const { canEdit, canPrint, isMobile } = useAuth();
-  const canEditPage = canEdit && !isMobile;
+  const canEditPage = canEdit;
   const [standards, setStandards] = useState<Standard[]>([]);
   const [settings, setSettings] = useState<CompanySettings | null>(null);
   const [search, setSearch] = useState("");

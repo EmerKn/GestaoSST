@@ -33,7 +33,7 @@ interface HydrantTest {
 
 export default function Agenda() {
   const { canEdit, isMobile } = useAuth();
-  const canEditPage = canEdit && !isMobile;
+  const canEditPage = canEdit;
 
   const [events, setEvents] = useState<AgendaEvent[]>([]);
   const [loading, setLoading] = useState(true);

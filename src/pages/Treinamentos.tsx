@@ -29,7 +29,7 @@ interface Training {
 export default function Treinamentos() {
   const { employees, suppliers } = useDatabaseOptions();
   const { canEdit, isMobile } = useAuth();
-  const canEditPage = canEdit && !isMobile;
+  const canEditPage = canEdit;
 
   const [trainings, setTrainings] = useState<Training[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);

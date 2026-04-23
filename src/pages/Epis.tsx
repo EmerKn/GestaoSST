@@ -54,7 +54,7 @@ export default function Epis() {
     complementary_data: ""
   });
 
-  const canEditPage = canEdit && !isMobile;
+  const canEditPage = canEdit;
 
   const loadPpes = async () => {
     try {
@@ -300,7 +300,7 @@ export default function Epis() {
             }`}
           >
             <Package className="w-4 h-4" />
-            <span className="hidden sm:inline">Estoque</span>
+            <span>Estoque</span>
           </button>
           <button
             onClick={() => setActiveTab("entregas")}
@@ -311,7 +311,7 @@ export default function Epis() {
             }`}
           >
             <ClipboardList className="w-4 h-4" />
-            <span className="hidden sm:inline">Entregas</span>
+            <span>Entregas</span>
           </button>
           <button
             onClick={() => setActiveTab("relatorios")}
@@ -322,7 +322,7 @@ export default function Epis() {
             }`}
           >
             <FileText className="w-4 h-4" />
-            <span className="hidden sm:inline">Relatórios</span>
+            <span>Relatórios</span>
           </button>
         </div>
       </div>

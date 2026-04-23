@@ -53,7 +53,7 @@ const getPictogramIcon = (name: string) => {
 
 export default function ProdutosQuimicos() {
   const { canEdit, isMobile } = useAuth();
-  const canEditPage = canEdit && !isMobile;
+  const canEditPage = canEdit;
 
   const [products, setProducts] = useState<ChemicalProduct[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -371,7 +371,7 @@ export default function ProdutosQuimicos() {
                     {product.pictograms.map((pic, idx) => (
                       <div key={idx} className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-md text-xs font-medium text-gray-700" title={pic}>
                         {getPictogramIcon(pic)}
-                        <span className="hidden sm:inline">{pic}</span>
+                        <span>{pic}</span>
                       </div>
                     ))}
                   </div>

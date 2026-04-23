@@ -197,7 +197,7 @@ export default function Layout() {
           {/* Right: User Info + Notifications */}
           <div className="flex items-center gap-3 shrink-0">
             {/* User Name & Role */}
-            <div className="hidden sm:flex items-center gap-2">
+            <div className="flex items-center gap-2">
               <div className="text-right">
                 <p className="text-sm font-medium text-slate-200 leading-tight">{user?.name}</p>
                 <p className="text-[10px] font-semibold uppercase tracking-wider leading-tight" style={{

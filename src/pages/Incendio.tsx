@@ -114,7 +114,7 @@ const EQUIPMENT_TYPES = [
 export default function Incendio() {
   const { sectors } = useDatabaseOptions();
   const { canEdit, isMobile } = useAuth();
-  const canEditPage = canEdit && !isMobile;
+  const canEditPage = canEdit;
   const [inspections, setInspections] = useState<FireInspection[]>([]);
   const [evacuationTests, setEvacuationTests] = useState<EvacuationTest[]>([]);
   const [evacuationDrills, setEvacuationDrills] = useState<EvacuationDrill[]>([]);

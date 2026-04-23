@@ -38,7 +38,7 @@ interface Employee {
 
 export default function Medicamentos() {
   const { canEdit, isMobile } = useAuth();
-  const canEditPage = canEdit && !isMobile;
+  const canEditPage = canEdit;
 
   const [activeTab, setActiveTab] = useState<"estoque" | "entregas" | "relatorios">("estoque");
   const [medications, setMedications] = useState<Medication[]>([]);

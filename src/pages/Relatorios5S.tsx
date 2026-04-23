@@ -176,14 +176,14 @@ export default function Relatorios5S() {
               className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition font-medium"
             >
               <Printer className="w-5 h-5" />
-              <span className="hidden sm:inline">Imprimir</span>
+              <span>Imprimir</span>
             </button>
             <button 
               onClick={handleExportPDF}
               className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition font-medium"
             >
               <Download className="w-5 h-5" />
-              <span className="hidden sm:inline">Gerar PDF</span>
+              <span>Gerar PDF</span>
             </button>
           </div>
         </div>

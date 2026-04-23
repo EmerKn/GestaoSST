@@ -49,7 +49,7 @@ export default function Funcionarios() {
   });
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  const canEditPage = canEdit && !isMobile;
+  const canEditPage = canEdit;
 
   const fetchEmployees = async () => {
     try {

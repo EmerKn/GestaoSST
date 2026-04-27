@@ -10,6 +10,8 @@ import { useDatabaseOptions } from "../hooks/useDatabaseOptions";
 import { SelectWithNew } from "../components/SelectWithNew";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { fetchSettings, addStandardHeaderToPDF, addStandardFooterToPDF, CompanySettings } from "../utils/pdfUtils";
+
 
 interface Training {
   id: number;
@@ -28,10 +30,13 @@ interface Training {
 
 export default function Treinamentos() {
   const { employees, suppliers } = useDatabaseOptions();
-  const { canEdit, isMobile } = useAuth();
+  const { canEdit } = useAuth();
+
   const canEditPage = canEdit;
 
+  const [settings, setSettings] = useState<CompanySettings | null>(null);
   const [trainings, setTrainings] = useState<Training[]>([]);
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEvalModal, setShowEvalModal] = useState(false);
   const [activeTab, setActiveTab] = useState<"list" | "reports">("list");
@@ -67,6 +72,9 @@ export default function Treinamentos() {
 
   const loadData = async () => {
     try {
+      const settingsData = await fetchSettings();
+      setSettings(settingsData);
+
       const { data, error } = await supabase
         .from('trainings')
         .select('*, training_evaluations(*)')
@@ -80,6 +88,7 @@ export default function Treinamentos() {
       console.error("Error loading trainings:", error);
     }
   };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,9 +180,10 @@ export default function Treinamentos() {
                 (e.rating_vocabulary || 0) + 
                 (e.rating_location || 0) + 
                 (e.rating_sound_images || (e.rating_time || 0)) + 
-                (e.rating_materials || 5);
+                (e.rating_materials || 0);
     return Math.round((sum / 30) * 100);
   };
+
 
   const generateReport = (training: Training) => {
     const doc = new jsPDF();
@@ -186,34 +196,55 @@ export default function Treinamentos() {
     
     const averageScore = evals.length > 0 ? Math.round(totalScore / evals.length) : 0;
 
-    let currentY = addStandardHeaderToPDF(doc, null, "Relatório de Avaliação de Treinamento");
+    let currentY = addStandardHeaderToPDF(doc, settings, "Relatório de Avaliação de Treinamento");
     
     doc.setFontSize(12);
-    doc.text(`Curso: ${training.title}`, 14, 35);
-    doc.text(`Data: ${format(parseISO(training.date), "dd/MM/yyyy")}`, 14, 42);
-    doc.text(`Instrutor: ${training.instructor}`, 14, 49);
-    doc.text(`Carga Horária: ${training.workload || 0} horas`, 14, 56);
-    doc.text(`Participantes Inscritos: ${training.enrolled}`, 14, 63);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Curso: ${training.title}`, 14, currentY + 10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Data: ${format(parseISO(training.date), "dd/MM/yyyy")}`, 14, currentY + 17);
+    doc.text(`Instrutor: ${training.instructor}`, 14, currentY + 24);
+    doc.text(`Carga Horária: ${training.workload || 0} horas`, 14, currentY + 31);
+    doc.text(`Participantes Inscritos: ${training.enrolled}`, 14, currentY + 38);
     
-    currentY = 70;
+    currentY += 45;
     if (training.participants && training.participants.length > 0) {
-      doc.text(`Funcionários Participantes: ${training.participants.join(', ')}`, 14, currentY, { maxWidth: 180 });
-      currentY += Math.ceil(training.participants.join(', ').length / 90) * 7;
+      doc.setFont("helvetica", "bold");
+      doc.text("Funcionários Participantes:", 14, currentY);
+      doc.setFont("helvetica", "normal");
+      const participantsText = training.participants.join(', ');
+      const splitParticipants = doc.splitTextToSize(participantsText, 180);
+      doc.text(splitParticipants, 14, currentY + 7);
+      currentY += (splitParticipants.length * 7) + 5;
     }
 
     doc.text(`Avaliações Realizadas: ${evals.length}`, 14, currentY);
     
     doc.setFontSize(16);
-    doc.text(`Pontuação do Treinamento: ${averageScore} / 100`, 14, currentY + 15);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0, 100, 0);
+    doc.text(`Pontuação Média: ${averageScore} / 100`, 14, currentY + 15);
+    doc.setTextColor(0, 0, 0);
     
     autoTable(doc, {
       startY: currentY + 25,
       head: [['Avaliador', 'Tipo', 'Nota (0-100)', 'Comentários']],
       body: evals.map(e => [
+        e.evaluator_name || 'Anônimo',
+        e.evaluator_type === 'participant' ? 'Participante' : 'Segurança',
+        `${calculateEvalScore(e)}/100`,
         e.comments || '-'
       ]),
       headStyles: { fillColor: [0, 0, 0] },
+      styles: { fontSize: 9 },
+      columnStyles: {
+        3: { cellWidth: 80 }
+      }
     });
+
+    const finalY = (doc as any).lastAutoTable.finalY;
+    addStandardFooterToPDF(doc, settings, finalY);
+
     
     const photos = evals.filter(e => e.photo_url).map(e => e.photo_url);
     if (photos.length > 0) {
@@ -248,7 +279,7 @@ export default function Treinamentos() {
     }
 
     const doc = new jsPDF();
-    let currentY = addStandardHeaderToPDF(doc, null, `Relatório Anual de Treinamentos - ${currentYear}`);
+    let currentY = addStandardHeaderToPDF(doc, settings, `Relatório Anual de Treinamentos - ${currentYear}`);
 
     // Trainings by month
     const trainingsByMonth = Array(12).fill(0);
@@ -324,7 +355,11 @@ export default function Treinamentos() {
       });
     }
 
+    const lastY = (doc as any).lastAutoTable?.finalY || currentY + 70;
+    addStandardFooterToPDF(doc, settings, lastY);
+
     doc.save(`Relatorio_Anual_Treinamentos_${currentYear}.pdf`);
+
   };
 
   const now = new Date();

@@ -227,17 +227,38 @@ export default function Configuracoes() {
           return null;
         };
 
+        const mapEmployees = (data: any[]) => {
+          const normalizeKey = (key: string) => key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+          return data.map(row => {
+            const normRow: any = {};
+            for (const key in row) {
+              normRow[normalizeKey(key)] = row[key];
+            }
+            return {
+              name: normRow['nome do colaborador'] || normRow['nome'] || normRow['name'] || 'Sem Nome',
+              cpf: normRow['cpf'] ? String(normRow['cpf']) : '000.000.000-00',
+              role: normRow['funcao'] || normRow['cargo'] || normRow['role'] || 'Não definido',
+              sector: normRow['setor'] || normRow['sector'] || 'Não definido',
+              shift: normRow['turno'] || normRow['shift'] || 'Comercial',
+              admission_date: normRow['admissao'] || normRow['data de admissao'] || normRow['admission_date'] || new Date().toISOString().split('T')[0],
+            };
+          });
+        };
+
         const employeesSheet = findSheet(["Funcionarios", "Colaboradores"]);
-        if (employeesSheet) payload.employees = XLSX.utils.sheet_to_json(employeesSheet);
+        if (employeesSheet) {
+          const raw = XLSX.utils.sheet_to_json(employeesSheet, { raw: false });
+          payload.employees = mapEmployees(raw);
+        }
 
         const ppesSheet = findSheet(["EPIs", "EPI"]);
-        if (ppesSheet) payload.ppes = XLSX.utils.sheet_to_json(ppesSheet);
+        if (ppesSheet) payload.ppes = XLSX.utils.sheet_to_json(ppesSheet, { raw: false });
 
         const occurrencesSheet = findSheet(["Ocorrencias", "Acidentes"]);
-        if (occurrencesSheet) payload.occurrences = XLSX.utils.sheet_to_json(occurrencesSheet);
+        if (occurrencesSheet) payload.occurrences = XLSX.utils.sheet_to_json(occurrencesSheet, { raw: false });
 
         const examsSheet = findSheet(["Exames", "ASO", "ASOs"]);
-        if (examsSheet) payload.exams = XLSX.utils.sheet_to_json(examsSheet);
+        if (examsSheet) payload.exams = XLSX.utils.sheet_to_json(examsSheet, { raw: false });
 
         let importedCount = 0;
         let hasError = false;

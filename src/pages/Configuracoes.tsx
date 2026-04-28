@@ -215,19 +215,29 @@ export default function Configuracoes() {
         
         const payload: any = {};
 
-        // Map sheets to tables
-        if (wb.SheetNames.includes("Funcionarios")) {
-          payload.employees = XLSX.utils.sheet_to_json(wb.Sheets["Funcionarios"]);
-        }
-        if (wb.SheetNames.includes("EPIs")) {
-          payload.ppes = XLSX.utils.sheet_to_json(wb.Sheets["EPIs"]);
-        }
-        if (wb.SheetNames.includes("Ocorrencias")) {
-          payload.occurrences = XLSX.utils.sheet_to_json(wb.Sheets["Ocorrencias"]);
-        }
-        if (wb.SheetNames.includes("Exames")) {
-          payload.exams = XLSX.utils.sheet_to_json(wb.Sheets["Exames"]);
-        }
+        // Helper to find sheet ignoring case and accents
+        const findSheet = (names: string[]) => {
+          const normalize = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+          const targetNames = names.map(normalize);
+          for (const sheetName of wb.SheetNames) {
+            if (targetNames.includes(normalize(sheetName))) {
+              return wb.Sheets[sheetName];
+            }
+          }
+          return null;
+        };
+
+        const employeesSheet = findSheet(["Funcionarios", "Colaboradores"]);
+        if (employeesSheet) payload.employees = XLSX.utils.sheet_to_json(employeesSheet);
+
+        const ppesSheet = findSheet(["EPIs", "EPI"]);
+        if (ppesSheet) payload.ppes = XLSX.utils.sheet_to_json(ppesSheet);
+
+        const occurrencesSheet = findSheet(["Ocorrencias", "Acidentes"]);
+        if (occurrencesSheet) payload.occurrences = XLSX.utils.sheet_to_json(occurrencesSheet);
+
+        const examsSheet = findSheet(["Exames", "ASO", "ASOs"]);
+        if (examsSheet) payload.exams = XLSX.utils.sheet_to_json(examsSheet);
 
         let importedCount = 0;
         let hasError = false;
@@ -450,7 +460,7 @@ export default function Configuracoes() {
             </h3>
             <p className="text-sm text-gray-600 mb-4">
               Importe funcionários, EPIs, ocorrências e exames através de uma planilha .xlsx. 
-              As abas devem se chamar: "Funcionarios", "EPIs", "Ocorrencias", "Exames".
+              As abas devem se chamar: "Funcionarios" (ou "Colaboradores"), "EPIs", "Ocorrencias", "Exames".
             </p>
             <label className="flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-100 transition cursor-pointer font-medium">
               <Upload className="w-4 h-4" />

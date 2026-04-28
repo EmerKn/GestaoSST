@@ -229,8 +229,39 @@ export default function Configuracoes() {
           payload.exams = XLSX.utils.sheet_to_json(wb.Sheets["Exames"]);
         }
 
-        // TODO: Implement Supabase bulk insert
-        alert("A importação de Excel não está disponível no modo Supabase ainda.");
+        let importedCount = 0;
+        let hasError = false;
+
+        if (payload.employees && payload.employees.length > 0) {
+          const { error } = await supabase.from('employees').insert(payload.employees);
+          if (error) { console.error("Erro funcionários:", error); hasError = true; }
+          else importedCount += payload.employees.length;
+        }
+        
+        if (payload.ppes && payload.ppes.length > 0) {
+          const { error } = await supabase.from('ppes').insert(payload.ppes);
+          if (error) { console.error("Erro EPIs:", error); hasError = true; }
+          else importedCount += payload.ppes.length;
+        }
+
+        if (payload.occurrences && payload.occurrences.length > 0) {
+          const { error } = await supabase.from('occurrences').insert(payload.occurrences);
+          if (error) { console.error("Erro ocorrências:", error); hasError = true; }
+          else importedCount += payload.occurrences.length;
+        }
+
+        if (payload.exams && payload.exams.length > 0) {
+          const { error } = await supabase.from('exams').insert(payload.exams);
+          if (error) { console.error("Erro exames:", error); hasError = true; }
+          else importedCount += payload.exams.length;
+        }
+
+        if (importedCount > 0) {
+          alert(`Importação concluída! ${importedCount} registros importados com sucesso.${hasError ? ' Alguns registros apresentaram erro e não foram importados.' : ''}`);
+          window.location.reload();
+        } else {
+          alert("Nenhum dado importado. Verifique o formato da planilha ou se há erros no console.");
+        }
         
       } catch (error) {
         console.error(error);

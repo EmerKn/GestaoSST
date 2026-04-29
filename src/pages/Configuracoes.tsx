@@ -244,7 +244,7 @@ export default function Configuracoes() {
         const mapEmployees = (data: any[]) => {
           const normalizeKey = (key: string) => {
             if (!key) return '';
-            return key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+            return key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, ' ').trim();
           };
           return data.map(row => {
             const normRow: any = {};
@@ -266,7 +266,7 @@ export default function Configuracoes() {
         const mapPPEs = (data: any[]) => {
           const normalizeKey = (key: string) => {
              if (!key) return '';
-             return key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+             return key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, ' ').trim();
           };
           return data.map(row => {
             const normRow: any = {};
@@ -285,7 +285,7 @@ export default function Configuracoes() {
         const mapOccurrences = (data: any[]) => {
           const normalizeKey = (key: string) => {
              if (!key) return '';
-             return key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+             return key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, ' ').trim();
           };
           return data.map(row => {
             const normRow: any = {};
@@ -311,7 +311,7 @@ export default function Configuracoes() {
         const mapExams = (data: any[]) => {
           const normalizeKey = (key: string) => {
              if (!key) return '';
-             return key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+             return key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, ' ').trim();
           };
           return data.map(row => {
             const normRow: any = {};

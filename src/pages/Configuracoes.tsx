@@ -241,16 +241,65 @@ export default function Configuracoes() {
           return String(rawDate);
         };
 
-        const mapEmployees = (data: any[]) => {
-          const normalizeKey = (key: string) => {
-            if (!key) return '';
-            return key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, ' ').trim();
+        const extractDataFromSheet = (sheet: any, expectedHeaders: string[]) => {
+          const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false }) as any[][];
+          if (!rows || rows.length === 0) return [];
+
+          const normalizeStr = (s: any) => {
+            if (typeof s !== 'string') return '';
+            return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, ' ').trim();
           };
-          return data.map(row => {
-            const normRow: any = {};
-            for (const key in row) {
-              normRow[normalizeKey(key)] = row[key];
+
+          let headerRowIndex = -1;
+          let headers: string[] = [];
+
+          for (let i = 0; i < Math.min(rows.length, 20); i++) {
+            const row = rows[i];
+            if (!Array.isArray(row)) continue;
+            
+            const normalizedRow = row.map(normalizeStr);
+            const hasExpectedHeader = expectedHeaders.some(h => normalizedRow.includes(h));
+            
+            if (hasExpectedHeader) {
+              headerRowIndex = i;
+              headers = normalizedRow;
+              break;
             }
+          }
+
+          if (headerRowIndex === -1) {
+            for (let i = 0; i < rows.length; i++) {
+              if (Array.isArray(rows[i]) && rows[i].length > 0) {
+                 headerRowIndex = i;
+                 headers = rows[i].map(normalizeStr);
+                 break;
+              }
+            }
+          }
+
+          if (headerRowIndex === -1) return [];
+
+          const parsedData = [];
+          for (let i = headerRowIndex + 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (!Array.isArray(row) || row.length === 0) continue;
+            if (row.every(cell => cell === undefined || cell === null || cell === '')) continue;
+
+            const rowObj: any = {};
+            for (let j = 0; j < headers.length; j++) {
+              const header = headers[j];
+              if (header) {
+                rowObj[header] = row[j];
+              }
+            }
+            parsedData.push(rowObj);
+          }
+
+          return parsedData;
+        };
+
+        const mapEmployees = (data: any[]) => {
+          return data.map(normRow => {
             return {
               name: normRow['nome do colaborador'] || normRow['nome'] || normRow['name'] || 'Sem Nome',
               cpf: normRow['cpf'] ? String(normRow['cpf']).replace(/[^\d.-]/g, '') : '000.000.000-00',
@@ -264,15 +313,7 @@ export default function Configuracoes() {
         };
 
         const mapPPEs = (data: any[]) => {
-          const normalizeKey = (key: string) => {
-             if (!key) return '';
-             return key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, ' ').trim();
-          };
-          return data.map(row => {
-            const normRow: any = {};
-            for (const key in row) {
-              normRow[normalizeKey(key)] = row[key];
-            }
+          return data.map(normRow => {
             return {
               name: normRow['epi'] || normRow['nome'] || normRow['nome do epi'] || normRow['equipamento'] || 'EPI sem nome',
               ca: normRow['ca'] ? String(normRow['ca']) : '00000',
@@ -283,15 +324,7 @@ export default function Configuracoes() {
         };
 
         const mapOccurrences = (data: any[]) => {
-          const normalizeKey = (key: string) => {
-             if (!key) return '';
-             return key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, ' ').trim();
-          };
-          return data.map(row => {
-            const normRow: any = {};
-            for (const key in row) {
-              normRow[normalizeKey(key)] = row[key];
-            }
+          return data.map(normRow => {
             return {
               type: normRow['tipo'] || 'Acidente',
               employee_id: parseInt(String(normRow['id do colaborador'] || normRow['id do funcionario'] || normRow['employee_id'] || '0')) || null, 
@@ -309,15 +342,7 @@ export default function Configuracoes() {
         };
 
         const mapExams = (data: any[]) => {
-          const normalizeKey = (key: string) => {
-             if (!key) return '';
-             return key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, ' ').trim();
-          };
-          return data.map(row => {
-            const normRow: any = {};
-            for (const key in row) {
-              normRow[normalizeKey(key)] = row[key];
-            }
+          return data.map(normRow => {
             return {
               employee_id: parseInt(String(normRow['id do colaborador'] || normRow['id do funcionario'] || normRow['employee_id'] || '0')) || null,
               type: normRow['tipo'] || normRow['tipo de exame'] || 'Periódico',
@@ -332,25 +357,25 @@ export default function Configuracoes() {
 
         const employeesSheet = findSheet(["Funcionarios", "Colaboradores"]);
         if (employeesSheet) {
-          const raw = XLSX.utils.sheet_to_json(employeesSheet, { raw: false });
+          const raw = extractDataFromSheet(employeesSheet, ['nome', 'nome do colaborador', 'cpf', 'funcao', 'cargo']);
           payload.employees = mapEmployees(raw);
         }
 
         const ppesSheet = findSheet(["EPIs", "EPI"]);
         if (ppesSheet) {
-          const raw = XLSX.utils.sheet_to_json(ppesSheet, { raw: false });
+          const raw = extractDataFromSheet(ppesSheet, ['epi', 'nome', 'ca', 'nome do epi']);
           payload.ppes = mapPPEs(raw);
         }
 
         const occurrencesSheet = findSheet(["Ocorrencias", "Acidentes"]);
         if (occurrencesSheet) {
-          const raw = XLSX.utils.sheet_to_json(occurrencesSheet, { raw: false });
+          const raw = extractDataFromSheet(occurrencesSheet, ['tipo', 'id do colaborador', 'data', 'lesao']);
           payload.occurrences = mapOccurrences(raw);
         }
 
         const examsSheet = findSheet(["Exames", "ASO", "ASOs"]);
         if (examsSheet) {
-          const raw = XLSX.utils.sheet_to_json(examsSheet, { raw: false });
+          const raw = extractDataFromSheet(examsSheet, ['tipo', 'id do colaborador', 'data do exame']);
           payload.exams = mapExams(raw);
         }
 

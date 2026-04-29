@@ -227,8 +227,25 @@ export default function Configuracoes() {
           return null;
         };
 
+        const formatDate = (rawDate: any) => {
+          if (!rawDate) return new Date().toISOString().split('T')[0];
+          if (typeof rawDate === 'string' && rawDate.includes('/')) {
+            const parts = rawDate.split('/');
+            if (parts.length === 3) {
+              return `${parts[2]}-${parts[1]}-${parts[0]}`;
+            }
+          } else if (typeof rawDate === 'number') {
+            const date = new Date(Math.round((rawDate - 25569) * 86400 * 1000));
+            return date.toISOString().split('T')[0];
+          }
+          return String(rawDate);
+        };
+
         const mapEmployees = (data: any[]) => {
-          const normalizeKey = (key: string) => key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+          const normalizeKey = (key: string) => {
+            if (!key) return '';
+            return key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+          };
           return data.map(row => {
             const normRow: any = {};
             for (const key in row) {
@@ -236,11 +253,79 @@ export default function Configuracoes() {
             }
             return {
               name: normRow['nome do colaborador'] || normRow['nome'] || normRow['name'] || 'Sem Nome',
-              cpf: normRow['cpf'] ? String(normRow['cpf']) : '000.000.000-00',
+              cpf: normRow['cpf'] ? String(normRow['cpf']).replace(/[^\d.-]/g, '') : '000.000.000-00',
               role: normRow['funcao'] || normRow['cargo'] || normRow['role'] || 'Não definido',
               sector: normRow['setor'] || normRow['sector'] || 'Não definido',
               shift: normRow['turno'] || normRow['shift'] || 'Comercial',
-              admission_date: normRow['admissao'] || normRow['data de admissao'] || normRow['admission_date'] || new Date().toISOString().split('T')[0],
+              gender: normRow['sexo'] || normRow['genero'] || 'Masculino',
+              admission_date: formatDate(normRow['data de admissao'] || normRow['admissao'] || normRow['admission_date']),
+            };
+          });
+        };
+
+        const mapPPEs = (data: any[]) => {
+          const normalizeKey = (key: string) => {
+             if (!key) return '';
+             return key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+          };
+          return data.map(row => {
+            const normRow: any = {};
+            for (const key in row) {
+              normRow[normalizeKey(key)] = row[key];
+            }
+            return {
+              name: normRow['epi'] || normRow['nome'] || normRow['nome do epi'] || normRow['equipamento'] || 'EPI sem nome',
+              ca: normRow['ca'] ? String(normRow['ca']) : '00000',
+              price: parseFloat(String(normRow['preco'] || normRow['valor'] || '0').replace('R$', '').replace(',', '.')) || 0,
+              stock: parseInt(String(normRow['estoque'] || normRow['quantidade'] || '0')) || 0,
+            };
+          });
+        };
+
+        const mapOccurrences = (data: any[]) => {
+          const normalizeKey = (key: string) => {
+             if (!key) return '';
+             return key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+          };
+          return data.map(row => {
+            const normRow: any = {};
+            for (const key in row) {
+              normRow[normalizeKey(key)] = row[key];
+            }
+            return {
+              type: normRow['tipo'] || 'Acidente',
+              employee_id: parseInt(String(normRow['id do colaborador'] || normRow['id do funcionario'] || normRow['employee_id'] || '0')) || null, 
+              date: formatDate(normRow['data'] || normRow['data do acidente']),
+              time: normRow['hora'] || normRow['horario'] || '00:00',
+              location: normRow['local'] || normRow['localizacao'] || '-',
+              sector: normRow['setor'] || '-',
+              description: normRow['descricao'] || '-',
+              injury: normRow['lesao'] || '-',
+              body_part: normRow['parte do corpo'] || '-',
+              days_away: parseInt(String(normRow['dias de afastamento'] || normRow['dias afastado'] || '0')) || 0,
+              status: normRow['status'] || 'Registrado'
+            };
+          });
+        };
+
+        const mapExams = (data: any[]) => {
+          const normalizeKey = (key: string) => {
+             if (!key) return '';
+             return key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+          };
+          return data.map(row => {
+            const normRow: any = {};
+            for (const key in row) {
+              normRow[normalizeKey(key)] = row[key];
+            }
+            return {
+              employee_id: parseInt(String(normRow['id do colaborador'] || normRow['id do funcionario'] || normRow['employee_id'] || '0')) || null,
+              type: normRow['tipo'] || normRow['tipo de exame'] || 'Periódico',
+              specific_exams: normRow['exames especificos'] || normRow['exames'] || '-',
+              periodicity: normRow['periodicidade'] || '12 meses',
+              exam_date: formatDate(normRow['data do exame'] || normRow['data']),
+              next_exam_date: formatDate(normRow['proximo exame'] || normRow['vencimento']),
+              status: normRow['status'] || 'Realizado'
             };
           });
         };
@@ -252,13 +337,22 @@ export default function Configuracoes() {
         }
 
         const ppesSheet = findSheet(["EPIs", "EPI"]);
-        if (ppesSheet) payload.ppes = XLSX.utils.sheet_to_json(ppesSheet, { raw: false });
+        if (ppesSheet) {
+          const raw = XLSX.utils.sheet_to_json(ppesSheet, { raw: false });
+          payload.ppes = mapPPEs(raw);
+        }
 
         const occurrencesSheet = findSheet(["Ocorrencias", "Acidentes"]);
-        if (occurrencesSheet) payload.occurrences = XLSX.utils.sheet_to_json(occurrencesSheet, { raw: false });
+        if (occurrencesSheet) {
+          const raw = XLSX.utils.sheet_to_json(occurrencesSheet, { raw: false });
+          payload.occurrences = mapOccurrences(raw);
+        }
 
         const examsSheet = findSheet(["Exames", "ASO", "ASOs"]);
-        if (examsSheet) payload.exams = XLSX.utils.sheet_to_json(examsSheet, { raw: false });
+        if (examsSheet) {
+          const raw = XLSX.utils.sheet_to_json(examsSheet, { raw: false });
+          payload.exams = mapExams(raw);
+        }
 
         let importedCount = 0;
         let hasError = false;

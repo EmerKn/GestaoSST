@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Search, Plus, Package, X, Save, FileText, Shield, Loader2, Search as SearchIcon, ClipboardList, Trash2, Download } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, addDays } from "date-fns";
 import { fetchSettings, addStandardHeaderToPDF, addStandardFooterToPDF, generatePPEReceiptPDF, CompanySettings } from "../utils/pdfUtils";
 import { useAuth } from "../contexts/AuthContext";
 import { ImageUpload } from "../components/ImageUpload";
@@ -25,6 +25,9 @@ interface PPE {
   commercial_name?: string;
   description?: string;
   complementary_data?: string;
+  max_days?: number;
+  adjusted_days?: number;
+  cleaning_instructions?: string;
 }
 
 export default function Epis() {
@@ -51,7 +54,10 @@ export default function Epis() {
     validity_date: "",
     commercial_name: "",
     description: "",
-    complementary_data: ""
+    complementary_data: "",
+    max_days: "",
+    adjusted_days: "",
+    cleaning_instructions: ""
   });
 
   const canEditPage = canEdit;
@@ -110,7 +116,7 @@ export default function Epis() {
     setFormData({ 
       name: "", ca: "", price: "", photo_url: "", stock: "", 
       last_purchase_date: "", validity_date: "", commercial_name: "", 
-      description: "", complementary_data: "" 
+      description: "", complementary_data: "", max_days: "", adjusted_days: "", cleaning_instructions: ""
     });
     setShowModal(true);
   };
@@ -128,7 +134,10 @@ export default function Epis() {
       validity_date: ppe.validity_date || "",
       commercial_name: ppe.commercial_name || "",
       description: ppe.description || "",
-      complementary_data: ppe.complementary_data || ""
+      complementary_data: ppe.complementary_data || "",
+      max_days: ppe.max_days ? ppe.max_days.toString() : "",
+      adjusted_days: ppe.adjusted_days ? ppe.adjusted_days.toString() : "",
+      cleaning_instructions: ppe.cleaning_instructions || ""
     });
     setShowModal(true);
   };
@@ -193,7 +202,10 @@ export default function Epis() {
         validity_date: formData.validity_date || null,
         commercial_name: formData.commercial_name || null,
         description: formData.description || null,
-        complementary_data: formData.complementary_data || null
+        complementary_data: formData.complementary_data || null,
+        max_days: formData.max_days ? parseInt(formData.max_days, 10) : null,
+        adjusted_days: formData.adjusted_days ? parseInt(formData.adjusted_days, 10) : null,
+        cleaning_instructions: formData.cleaning_instructions || null
       };
 
       if (editingId) {
@@ -254,6 +266,30 @@ export default function Epis() {
       
       const { error } = await supabase.from('ppe_deliveries').insert(inserts);
       if (error) throw error;
+      
+      // Schedule agenda events for PPE replacements
+      const agendaEvents = [];
+      for (const item of cart) {
+        const ppe = ppes.find(p => p.id === item.ppe_id);
+        if (ppe && ppe.adjusted_days) {
+          const exchangeDate = addDays(parseISO(deliveryDate), ppe.adjusted_days);
+          const notificationDate = addDays(exchangeDate, -7);
+          
+          agendaEvents.push({
+            title: `Lembrete: Troca de EPI em 7 dias (${emp?.name})`,
+            date: format(notificationDate, 'yyyy-MM-dd'),
+            time: '08:00',
+            description: `Faltam 7 dias para a troca do EPI ${ppe.name} para o colaborador ${emp?.name} (Setor: ${emp?.sector || '-'}, Função: ${emp?.role || '-'}). Prazo Ajustado: ${ppe.adjusted_days} dias.`,
+            type: 'EPI',
+            status: 'Agendado'
+          });
+        }
+      }
+      
+      if (agendaEvents.length > 0) {
+        const { error: agendaError } = await supabase.from('agenda_events').insert(agendaEvents);
+        if (agendaError) console.error("Error scheduling agenda events:", agendaError);
+      }
       
       handleReceiptPDF(emp, cart, deliveryDate);
       setCart([]);
@@ -549,6 +585,22 @@ export default function Epis() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Dados Complementares</label>
                   <textarea name="complementary_data" value={formData.complementary_data} onChange={handleInputChange} rows={2} className="w-full p-2 border border-gray-300 rounded-lg resize-none placeholder:text-gray-400" />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Prazo Original/Fabricante (Dias)</label>
+                    <input type="number" name="max_days" value={formData.max_days} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg placeholder:text-gray-400" placeholder="Ex: 180" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Prazo Ajustado (Dias) - <span className="text-emerald-600 text-xs font-bold">Gera Lembrete</span></label>
+                    <input type="number" name="adjusted_days" value={formData.adjusted_days} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg placeholder:text-gray-400" placeholder="Ex: 90" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Instruções de Limpeza / Conservação</label>
+                  <textarea name="cleaning_instructions" value={formData.cleaning_instructions} onChange={handleInputChange} rows={2} className="w-full p-2 border border-gray-300 rounded-lg resize-none placeholder:text-gray-400" placeholder="Descreva como limpar, guardar e conservar o EPI..." />
                 </div>
 
                 <div className="grid grid-cols-3 gap-4">

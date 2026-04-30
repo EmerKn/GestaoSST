@@ -323,6 +323,9 @@ export default function Configuracoes() {
                 ca: normRow['ca'] ? String(normRow['ca']) : '00000',
                 price: parseFloat(String(normRow['preco'] || normRow['valor'] || '0').replace('R$', '').replace(',', '.')) || 0,
                 stock: parseInt(String(normRow['estoque'] || normRow['quantidade'] || '0')) || 0,
+                max_days: parseInt(String(normRow['prazo maximo'] || normRow['prazo original'] || normRow['max_days'] || '0')) || null,
+                adjusted_days: parseInt(String(normRow['prazo ajustado'] || normRow['adjusted_days'] || '0')) || null,
+                cleaning_instructions: normRow['limpeza'] || normRow['instrucoes de limpeza'] || normRow['forma de limpeza'] || null
               };
             });
         };

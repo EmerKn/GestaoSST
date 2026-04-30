@@ -115,6 +115,19 @@ export default function Funcionarios() {
     setShowAddModal(true);
   };
 
+  const handleDelete = async (id: number) => {
+    if (window.confirm("Tem certeza que deseja excluir este funcionário? Esta ação não pode ser desfeita e pode falhar se houver registros vinculados (como EPIs entregues).")) {
+      try {
+        const { error } = await supabase.from('employees').delete().eq('id', id);
+        if (error) throw error;
+        fetchEmployees();
+      } catch (error) {
+        console.error("Error deleting employee:", error);
+        alert("Erro ao excluir. O funcionário possui registros vinculados (Ficha SST, Recibos) e não pode ser excluído diretamente. Sugestão: adicione uma Data de Demissão para ocultá-lo do dashboard.");
+      }
+    }
+  };
+
   const filtered = employees.filter(e => e.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
@@ -163,7 +176,12 @@ export default function Funcionarios() {
                     <div className="flex items-center gap-3">
                       <img src={emp.photo_url} alt={emp.name} referrerPolicy="no-referrer" className="w-10 h-10 rounded-full object-cover border border-gray-200" />
                       <div>
-                        <p className="font-medium text-gray-900">{emp.name}</p>
+                        <p className="font-medium text-gray-900">
+                          {emp.name}
+                          {emp.termination_date && (
+                            <span className="ml-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-700 rounded-full">Demitido</span>
+                          )}
+                        </p>
                         <p className="text-sm text-gray-500">{emp.cpf}</p>
                       </div>
                     </div>
@@ -175,20 +193,29 @@ export default function Funcionarios() {
                   <td className="p-4 text-gray-700">{emp.shift}</td>
                   <td className="p-4 text-right flex items-center justify-end gap-2">
                     {canEditPage && (
-                      <button 
-                        onClick={() => handleEdit(emp)}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition text-sm font-medium"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                        Editar
-                      </button>
+                      <>
+                        <button 
+                          onClick={() => handleEdit(emp)}
+                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition text-sm font-medium"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                          <span className="hidden sm:inline">Editar</span>
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(emp.id)}
+                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-700 rounded-md hover:bg-red-100 transition text-sm font-medium"
+                          title="Excluir funcionário"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
                     )}
                     <Link 
                       to={`/funcionarios/${emp.id}`}
                       className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-md hover:bg-emerald-100 transition text-sm font-medium"
                     >
                       <FileText className="w-4 h-4" />
-                      Ficha SST
+                      <span className="hidden sm:inline">Ficha SST</span>
                     </Link>
                   </td>
                 </tr>

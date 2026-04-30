@@ -24,7 +24,7 @@ export default function Dashboard() {
       try {
         // Fetch counts
         const [empRes, ppeRes, fireRes, occRes, wpRes, inspections5sRes, brigadeTrainingsRes, trainingsRes] = await Promise.all([
-          supabase.from('employees').select('id'),
+          supabase.from('employees').select('id, termination_date'),
           supabase.from('ppes').select('id'),
           supabase.from('fire_equipment').select('id'),
           supabase.from('occurrences').select('id'),
@@ -34,8 +34,12 @@ export default function Dashboard() {
           supabase.from('trainings').select('*').order('date', { ascending: true })
         ]);
 
+        const activeEmployees = empRes.data 
+          ? filterRealData(empRes.data).filter((e: any) => !e.termination_date) 
+          : [];
+
         setCounts({
-          employees: empRes.data ? filterRealData(empRes.data).length : 0,
+          employees: activeEmployees.length,
           ppes: ppeRes.data ? filterRealData(ppeRes.data).length : 0,
           fireEquipment: fireRes.data ? filterRealData(fireRes.data).length : 0,
           occurrences: occRes.data ? filterRealData(occRes.data).length : 0,

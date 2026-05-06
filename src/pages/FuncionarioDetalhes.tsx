@@ -23,6 +23,7 @@ interface EmployeeDetails {
   incidents: any[];
   trainings: any[];
   brigadeInfo: any;
+  cipaInfo: any;
   exams: any[];
   medication_deliveries: any[];
 }
@@ -47,11 +48,12 @@ export default function FuncionarioDetalhes() {
           
         if (empError) throw empError;
         
-        const [deliveriesRes, incidentsRes, trainingsRes, brigadeRes, examsRes, medDeliveriesRes] = await Promise.all([
+        const [deliveriesRes, incidentsRes, trainingsRes, brigadeRes, cipaRes, examsRes, medDeliveriesRes] = await Promise.all([
           supabase.from('ppe_deliveries').select('*, ppes(name, photo_url, ca)').eq('employee_id', id).order('delivery_date', { ascending: false }),
           supabase.from('incidents').select('*').eq('employee_id', id).order('date', { ascending: false }),
           supabase.from('trainings').select('*').contains('participants', [empData.name]).order('date', { ascending: false }),
           supabase.from('brigade_members').select('*').eq('employee_id', id).single(),
+          supabase.from('cipa_members').select('*').eq('employee_id', id).single(),
           supabase.from('exams').select('*').eq('employee_id', id).order('exam_date', { ascending: false }),
           supabase.from('medication_deliveries').select('*, medications(name, dosage)').eq('employee_id', id).order('delivery_date', { ascending: false })
         ]);
@@ -69,6 +71,7 @@ export default function FuncionarioDetalhes() {
           incidents: incidentsRes.data || [],
           trainings: formattedTrainings,
           brigadeInfo: brigadeRes.data || null,
+          cipaInfo: cipaRes.data || null,
           exams: examsRes.data || [],
           medication_deliveries: medDeliveriesRes.data || []
         });
@@ -133,22 +136,33 @@ export default function FuncionarioDetalhes() {
         ref={componentRef} 
         className="bg-white p-8 sm:p-12 rounded-xl shadow-sm border border-gray-200 print:shadow-none print:border-none print:p-0"
       >
-        {/* Header */}
-        <div className="border-b-2 border-gray-800 pb-6 mb-8 flex items-start justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-emerald-600 text-white flex items-center justify-center rounded-lg font-bold text-2xl">
-              SST
+        {/* Header - matching PDF report style */}
+        <div className="mb-8">
+          <div className="bg-black h-3 w-full rounded-t-lg print:rounded-none"></div>
+          <div className="border-b-2 border-gray-300 pb-6 pt-4 flex items-start justify-between">
+            <div className="flex items-center gap-4">
+              {settings?.company_logo ? (
+                <img src={settings.company_logo} alt="Logo" className="w-16 h-16 object-contain rounded-lg" />
+              ) : (
+                <div className="w-16 h-16 bg-gray-800 text-white flex items-center justify-center rounded-lg font-bold text-2xl">
+                  SST
+                </div>
+              )}
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">{settings?.company_name || "SST Gestão"}</h2>
+                <p className="text-gray-500 text-sm">{settings?.company_address || ""}</p>
+                {settings?.company_phone && (
+                  <p className="text-gray-500 text-sm">{settings.company_phone}{settings.company_website ? ` | ${settings.company_website}` : ''}</p>
+                )}
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 uppercase tracking-tight">Ficha Individual de SST</h1>
-              <p className="text-gray-600">Empresa Exemplo S.A. - CNPJ: 00.000.000/0001-00</p>
-              <p className="text-gray-600 text-sm">Rua Fictícia, 123 - Centro - São Paulo/SP</p>
+            <div className="text-right text-sm text-gray-500">
+              <p>Data de Emissão:</p>
+              <p className="font-medium text-gray-900">{format(new Date(), "dd/MM/yyyy")}</p>
             </div>
           </div>
-          <div className="text-right text-sm text-gray-500">
-            <p>Data de Emissão:</p>
-            <p className="font-medium text-gray-900">{format(new Date(), "dd/MM/yyyy")}</p>
-          </div>
+          <h1 className="text-2xl font-bold text-red-700 uppercase tracking-tight mt-4">Ficha Individual de SST</h1>
+          <p className="text-sm text-gray-500">Data de Emissão: {format(new Date(), "dd/MM/yyyy HH:mm")}</p>
         </div>
 
         {/* Employee Info */}
@@ -159,7 +173,7 @@ export default function FuncionarioDetalhes() {
             referrerPolicy="no-referrer"
             className="w-32 h-32 rounded-lg object-cover border-2 border-gray-200"
           />
-          <div className="grid grid-cols-2 gap-x-8 gap-y-4 text-sm">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4 text-sm">
             <div>
               <p className="text-gray-500 font-medium uppercase text-xs">Nome Completo</p>
               <p className="font-bold text-gray-900 text-lg">{employee.name}</p>
@@ -167,6 +181,24 @@ export default function FuncionarioDetalhes() {
             <div>
               <p className="text-gray-500 font-medium uppercase text-xs">CPF</p>
               <p className="font-medium text-gray-900">{employee.cpf}</p>
+            </div>
+            <div>
+              <p className="text-gray-500 font-medium uppercase text-xs">Participação</p>
+              <div className="flex flex-wrap gap-1 mt-0.5">
+                {employee.brigadeInfo && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                    <Flame className="w-3 h-3" /> Brigadista
+                  </span>
+                )}
+                {employee.cipaInfo && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                    <Shield className="w-3 h-3" /> CIPA
+                  </span>
+                )}
+                {!employee.brigadeInfo && !employee.cipaInfo && (
+                  <span className="text-gray-400 italic text-xs">—</span>
+                )}
+              </div>
             </div>
             <div>
               <p className="text-gray-500 font-medium uppercase text-xs">Cargo</p>

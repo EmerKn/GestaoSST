@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS service_orders (
+  id SERIAL PRIMARY KEY,
+  job_role TEXT NOT NULL,
+  sector TEXT NOT NULL,
+  activities TEXT,
+  hazards TEXT,
+  risk_category TEXT,
+  preventive_measures TEXT,
+  required_ppe TEXT,
+  emergency_procedures TEXT,
+  prohibitions TEXT,
+  worker_obligations TEXT,
+  elaboration_date TEXT NOT NULL,
+  revision_date TEXT,
+  revision_reason TEXT,
+  status TEXT DEFAULT 'Vigente',
+  responsible_name TEXT,
+  observations TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);

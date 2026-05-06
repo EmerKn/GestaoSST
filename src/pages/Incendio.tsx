@@ -124,6 +124,10 @@ export default function Incendio() {
   const [showOrganograma, setShowOrganograma] = useState(false);
   const [settings, setSettings] = useState<CompanySettings | null>(null);
 
+  const [brigadeSymbols, setBrigadeSymbols] = useState<Record<string, string>>({});
+  const symbolFileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedRoleForSymbol, setSelectedRoleForSymbol] = useState<string | null>(null);
+
   const [showTestModal, setShowTestModal] = useState(false);
   const [testData, setTestData] = useState<Partial<EvacuationTest>>({
     date: format(new Date(), "yyyy-MM-dd"),
@@ -285,9 +289,68 @@ export default function Incendio() {
       }
       if (eqRes.data) setEquipment(filterRealData(eqRes.data));
       setSettings(settingsRes);
+      loadBrigadeSymbols();
     } catch (error) {
       console.error("Error loading fire prevention data:", error);
     }
+  };
+
+  const loadBrigadeSymbols = async () => {
+    try {
+      const { data, error } = await supabase.from('brigade_symbols').select('*');
+      if (!error && data) {
+        const symbolsObj = data.reduce((acc: any, curr: any) => {
+          acc[curr.role] = curr.image_url;
+          return acc;
+        }, {});
+        setBrigadeSymbols(symbolsObj);
+      }
+    } catch (err) {
+      console.warn("Table brigade_symbols may not exist yet", err);
+    }
+  };
+
+  const handleSymbolUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedRoleForSymbol) return;
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `brigade_symbols/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      const { error: dbError } = await supabase
+        .from('brigade_symbols')
+        .upsert({ role: selectedRoleForSymbol, image_url: publicUrl });
+
+      if (dbError) throw dbError;
+
+      setBrigadeSymbols(prev => ({ ...prev, [selectedRoleForSymbol]: publicUrl }));
+    } catch (error) {
+      console.error("Error uploading symbol:", error);
+      alert("Erro ao fazer upload da imagem da brigada.");
+    } finally {
+      setSelectedRoleForSymbol(null);
+      if (symbolFileInputRef.current) {
+        symbolFileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const triggerSymbolUpload = (role: string) => {
+    if (!canEditPage) return;
+    setSelectedRoleForSymbol(role);
+    symbolFileInputRef.current?.click();
   };
 
   useEffect(() => {
@@ -847,6 +910,13 @@ export default function Incendio() {
 
   return (
     <div className="space-y-8">
+      <input 
+        type="file" 
+        ref={symbolFileInputRef} 
+        onChange={handleSymbolUpload} 
+        accept="image/*" 
+        className="hidden" 
+      />
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-2xl font-bold text-slate-200 flex items-center gap-3">
           <Flame className="w-8 h-8 text-orange-600" />
@@ -952,8 +1022,16 @@ export default function Incendio() {
               <div className="flex flex-col items-center">
                 {/* Coordinator */}
                 <div className="bg-red-50 border-2 border-red-200 p-4 rounded-xl w-64 text-center relative z-10 shadow-sm">
-                  <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3 border-2 border-red-300">
-                    <ShieldCheck className="w-8 h-8 text-red-600" />
+                  <div 
+                    className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3 border-2 border-red-300 cursor-pointer overflow-hidden hover:bg-red-200 transition"
+                    onClick={() => triggerSymbolUpload("Coordenador da Brigada")}
+                    title={canEditPage ? "Clique para alterar o símbolo" : ""}
+                  >
+                    {brigadeSymbols["Coordenador da Brigada"] ? (
+                      <img src={brigadeSymbols["Coordenador da Brigada"]} alt="Símbolo" className="w-full h-full object-cover" />
+                    ) : (
+                      <ShieldCheck className="w-8 h-8 text-red-600" />
+                    )}
                   </div>
                   <h3 className="font-bold text-red-900 uppercase text-sm mb-1">Coordenador da Brigada</h3>
                   <p className="font-bold text-gray-900">{settings?.resp_name || "Responsável SST"}</p>
@@ -978,14 +1056,29 @@ export default function Incendio() {
                     {brigade.filter(m => m.brigade_role === "Líder Diurno").length > 0 ? (
                       brigade.filter(m => m.brigade_role === "Líder Diurno").map(leader => (
                         <div key={leader.id} className="bg-blue-50 border-2 border-blue-200 p-3 rounded-xl w-48 text-center relative z-10 shadow-sm mb-4">
-                          <h3 className="font-bold text-blue-900 uppercase text-[10px] mb-1">Líder Diurno</h3>
+                          <div 
+                            className="cursor-pointer hover:bg-blue-100 rounded p-1 transition flex flex-col items-center mb-2"
+                            onClick={() => triggerSymbolUpload("Líder Diurno")}
+                            title={canEditPage ? "Clique para alterar o símbolo" : ""}
+                          >
+                            {brigadeSymbols["Líder Diurno"] && <img src={brigadeSymbols["Líder Diurno"]} alt="Símbolo" className="w-6 h-6 object-contain mb-1" />}
+                            <h3 className="font-bold text-blue-900 uppercase text-[10px]">Líder Diurno</h3>
+                          </div>
+                          <img src={leader.photo_url || "https://picsum.photos/seed/user/100/100"} alt={leader.name} className="w-8 h-8 rounded-full mx-auto mb-1 object-cover border border-blue-300" />
                           <p className="font-bold text-gray-900 text-xs">{leader.name}</p>
                           <p className="text-[10px] text-gray-500">{leader.sector}</p>
                         </div>
                       ))
                     ) : (
                       <div className="bg-blue-50 border-2 border-blue-200 p-3 rounded-xl w-48 text-center relative z-10 shadow-sm mb-4">
-                        <h3 className="font-bold text-blue-900 uppercase text-sm">Líder Diurno</h3>
+                        <div 
+                          className="cursor-pointer hover:bg-blue-100 rounded p-1 transition flex flex-col items-center mb-2"
+                          onClick={() => triggerSymbolUpload("Líder Diurno")}
+                          title={canEditPage ? "Clique para alterar o símbolo" : ""}
+                        >
+                          {brigadeSymbols["Líder Diurno"] && <img src={brigadeSymbols["Líder Diurno"]} alt="Símbolo" className="w-6 h-6 object-contain mb-1" />}
+                          <h3 className="font-bold text-blue-900 uppercase text-sm">Líder Diurno</h3>
+                        </div>
                         <p className="text-gray-400 text-xs italic">Não definido</p>
                       </div>
                     )}
@@ -1004,12 +1097,18 @@ export default function Incendio() {
                     <div className="flex justify-between w-full mt-6 gap-2">
                       {/* Combate a Incêndio */}
                       <div className="flex flex-col items-center w-1/3">
-                        <div className="bg-orange-50 border border-orange-200 p-2 rounded-lg w-full text-center mb-3 shadow-sm">
+                        <div 
+                          className="bg-orange-50 border border-orange-200 p-2 rounded-lg w-full text-center mb-3 shadow-sm cursor-pointer hover:bg-orange-100 transition flex flex-col items-center"
+                          onClick={() => triggerSymbolUpload("Combate a Incêndio")}
+                          title={canEditPage ? "Clique para alterar o símbolo" : ""}
+                        >
+                          {brigadeSymbols["Combate a Incêndio"] && <img src={brigadeSymbols["Combate a Incêndio"]} alt="Símbolo" className="w-6 h-6 object-contain mb-1" />}
                           <h4 className="font-bold text-orange-800 text-xs">Combate a Incêndio</h4>
                         </div>
                         <div className="space-y-2 w-full">
                           {brigade.filter(m => (m.brigade_role === "Combate a Incêndio" || m.brigade_role === "Emergência") && (!m.shift || (!m.shift.toLowerCase().includes('noite') && !m.shift.toLowerCase().includes('noturno') && !m.shift.toLowerCase().includes('3º turno')))).map(m => (
                             <div key={m.id} className="bg-white border border-gray-200 p-2 rounded-lg text-center shadow-sm">
+                              <img src={m.photo_url || "https://picsum.photos/seed/user/100/100"} alt={m.name} className="w-8 h-8 rounded-full mx-auto mb-1 object-cover border border-gray-300" />
                               <p className="font-bold text-gray-900 text-xs">{m.name}</p>
                               <p className="text-[10px] text-gray-500">{m.sector}</p>
                             </div>
@@ -1019,12 +1118,18 @@ export default function Incendio() {
 
                       {/* Primeiros Socorros */}
                       <div className="flex flex-col items-center w-1/3">
-                        <div className="bg-emerald-50 border border-blue-200 p-2 rounded-lg w-full text-center mb-3 shadow-sm">
+                        <div 
+                          className="bg-emerald-50 border border-blue-200 p-2 rounded-lg w-full text-center mb-3 shadow-sm cursor-pointer hover:bg-blue-100 transition flex flex-col items-center"
+                          onClick={() => triggerSymbolUpload("Primeiros Socorros")}
+                          title={canEditPage ? "Clique para alterar o símbolo" : ""}
+                        >
+                          {brigadeSymbols["Primeiros Socorros"] && <img src={brigadeSymbols["Primeiros Socorros"]} alt="Símbolo" className="w-6 h-6 object-contain mb-1" />}
                           <h4 className="font-bold text-blue-800 text-xs">Primeiros Socorros</h4>
                         </div>
                         <div className="space-y-2 w-full">
                           {brigade.filter(m => m.brigade_role === "Primeiros Socorros" && (!m.shift || (!m.shift.toLowerCase().includes('noite') && !m.shift.toLowerCase().includes('noturno') && !m.shift.toLowerCase().includes('3º turno')))).map(m => (
                             <div key={m.id} className="bg-white border border-gray-200 p-2 rounded-lg text-center shadow-sm">
+                              <img src={m.photo_url || "https://picsum.photos/seed/user/100/100"} alt={m.name} className="w-8 h-8 rounded-full mx-auto mb-1 object-cover border border-gray-300" />
                               <p className="font-bold text-gray-900 text-xs">{m.name}</p>
                               <p className="text-[10px] text-gray-500">{m.sector}</p>
                             </div>
@@ -1034,12 +1139,18 @@ export default function Incendio() {
 
                       {/* Abandono de Área */}
                       <div className="flex flex-col items-center w-1/3">
-                        <div className="bg-emerald-50 border border-emerald-200 p-2 rounded-lg w-full text-center mb-3 shadow-sm">
+                        <div 
+                          className="bg-emerald-50 border border-emerald-200 p-2 rounded-lg w-full text-center mb-3 shadow-sm cursor-pointer hover:bg-emerald-100 transition flex flex-col items-center"
+                          onClick={() => triggerSymbolUpload("Abandono de Área")}
+                          title={canEditPage ? "Clique para alterar o símbolo" : ""}
+                        >
+                          {brigadeSymbols["Abandono de Área"] && <img src={brigadeSymbols["Abandono de Área"]} alt="Símbolo" className="w-6 h-6 object-contain mb-1" />}
                           <h4 className="font-bold text-emerald-800 text-xs">Abandono de Área</h4>
                         </div>
                         <div className="space-y-2 w-full">
                           {brigade.filter(m => (m.brigade_role === "Abandono de Área" || m.brigade_role === "Evacuação") && (!m.shift || (!m.shift.toLowerCase().includes('noite') && !m.shift.toLowerCase().includes('noturno') && !m.shift.toLowerCase().includes('3º turno')))).map(m => (
                             <div key={m.id} className="bg-white border border-gray-200 p-2 rounded-lg text-center shadow-sm">
+                              <img src={m.photo_url || "https://picsum.photos/seed/user/100/100"} alt={m.name} className="w-8 h-8 rounded-full mx-auto mb-1 object-cover border border-gray-300" />
                               <p className="font-bold text-gray-900 text-xs">{m.name}</p>
                               <p className="text-[10px] text-gray-500">{m.sector}</p>
                             </div>
@@ -1055,14 +1166,29 @@ export default function Incendio() {
                     {brigade.filter(m => m.brigade_role === "Líder Noturno").length > 0 ? (
                       brigade.filter(m => m.brigade_role === "Líder Noturno").map(leader => (
                         <div key={leader.id} className="bg-indigo-50 border-2 border-indigo-200 p-3 rounded-xl w-48 text-center relative z-10 shadow-sm mb-4">
-                          <h3 className="font-bold text-indigo-900 uppercase text-[10px] mb-1">Líder Noturno</h3>
+                          <div 
+                            className="cursor-pointer hover:bg-indigo-100 rounded p-1 transition flex flex-col items-center mb-2"
+                            onClick={() => triggerSymbolUpload("Líder Noturno")}
+                            title={canEditPage ? "Clique para alterar o símbolo" : ""}
+                          >
+                            {brigadeSymbols["Líder Noturno"] && <img src={brigadeSymbols["Líder Noturno"]} alt="Símbolo" className="w-6 h-6 object-contain mb-1" />}
+                            <h3 className="font-bold text-indigo-900 uppercase text-[10px]">Líder Noturno</h3>
+                          </div>
+                          <img src={leader.photo_url || "https://picsum.photos/seed/user/100/100"} alt={leader.name} className="w-8 h-8 rounded-full mx-auto mb-1 object-cover border border-indigo-300" />
                           <p className="font-bold text-gray-900 text-xs">{leader.name}</p>
                           <p className="text-[10px] text-gray-500">{leader.sector}</p>
                         </div>
                       ))
                     ) : (
                       <div className="bg-indigo-50 border-2 border-indigo-200 p-3 rounded-xl w-48 text-center relative z-10 shadow-sm mb-4">
-                        <h3 className="font-bold text-indigo-900 uppercase text-sm">Líder Noturno</h3>
+                        <div 
+                          className="cursor-pointer hover:bg-indigo-100 rounded p-1 transition flex flex-col items-center mb-2"
+                          onClick={() => triggerSymbolUpload("Líder Noturno")}
+                          title={canEditPage ? "Clique para alterar o símbolo" : ""}
+                        >
+                          {brigadeSymbols["Líder Noturno"] && <img src={brigadeSymbols["Líder Noturno"]} alt="Símbolo" className="w-6 h-6 object-contain mb-1" />}
+                          <h3 className="font-bold text-indigo-900 uppercase text-sm">Líder Noturno</h3>
+                        </div>
                         <p className="text-gray-400 text-xs italic">Não definido</p>
                       </div>
                     )}
@@ -1081,12 +1207,18 @@ export default function Incendio() {
                     <div className="flex justify-between w-full mt-6 gap-2">
                       {/* Combate a Incêndio */}
                       <div className="flex flex-col items-center w-1/3">
-                        <div className="bg-orange-50 border border-orange-200 p-2 rounded-lg w-full text-center mb-3 shadow-sm">
+                        <div 
+                          className="bg-orange-50 border border-orange-200 p-2 rounded-lg w-full text-center mb-3 shadow-sm cursor-pointer hover:bg-orange-100 transition flex flex-col items-center"
+                          onClick={() => triggerSymbolUpload("Combate a Incêndio Noturno")}
+                          title={canEditPage ? "Clique para alterar o símbolo" : ""}
+                        >
+                          {brigadeSymbols["Combate a Incêndio Noturno"] && <img src={brigadeSymbols["Combate a Incêndio Noturno"]} alt="Símbolo" className="w-6 h-6 object-contain mb-1" />}
                           <h4 className="font-bold text-orange-800 text-xs">Combate a Incêndio</h4>
                         </div>
                         <div className="space-y-2 w-full">
                           {brigade.filter(m => (m.brigade_role === "Combate a Incêndio" || m.brigade_role === "Emergência") && (m.shift && (m.shift.toLowerCase().includes('noite') || m.shift.toLowerCase().includes('noturno') || m.shift.toLowerCase().includes('3º turno')))).map(m => (
                             <div key={m.id} className="bg-white border border-gray-200 p-2 rounded-lg text-center shadow-sm">
+                              <img src={m.photo_url || "https://picsum.photos/seed/user/100/100"} alt={m.name} className="w-8 h-8 rounded-full mx-auto mb-1 object-cover border border-gray-300" />
                               <p className="font-bold text-gray-900 text-xs">{m.name}</p>
                               <p className="text-[10px] text-gray-500">{m.sector}</p>
                             </div>
@@ -1096,12 +1228,18 @@ export default function Incendio() {
 
                       {/* Primeiros Socorros */}
                       <div className="flex flex-col items-center w-1/3">
-                        <div className="bg-emerald-50 border border-blue-200 p-2 rounded-lg w-full text-center mb-3 shadow-sm">
+                        <div 
+                          className="bg-emerald-50 border border-blue-200 p-2 rounded-lg w-full text-center mb-3 shadow-sm cursor-pointer hover:bg-blue-100 transition flex flex-col items-center"
+                          onClick={() => triggerSymbolUpload("Primeiros Socorros Noturno")}
+                          title={canEditPage ? "Clique para alterar o símbolo" : ""}
+                        >
+                          {brigadeSymbols["Primeiros Socorros Noturno"] && <img src={brigadeSymbols["Primeiros Socorros Noturno"]} alt="Símbolo" className="w-6 h-6 object-contain mb-1" />}
                           <h4 className="font-bold text-blue-800 text-xs">Primeiros Socorros</h4>
                         </div>
                         <div className="space-y-2 w-full">
                           {brigade.filter(m => m.brigade_role === "Primeiros Socorros" && (m.shift && (m.shift.toLowerCase().includes('noite') || m.shift.toLowerCase().includes('noturno') || m.shift.toLowerCase().includes('3º turno')))).map(m => (
                             <div key={m.id} className="bg-white border border-gray-200 p-2 rounded-lg text-center shadow-sm">
+                              <img src={m.photo_url || "https://picsum.photos/seed/user/100/100"} alt={m.name} className="w-8 h-8 rounded-full mx-auto mb-1 object-cover border border-gray-300" />
                               <p className="font-bold text-gray-900 text-xs">{m.name}</p>
                               <p className="text-[10px] text-gray-500">{m.sector}</p>
                             </div>
@@ -1111,12 +1249,18 @@ export default function Incendio() {
 
                       {/* Abandono de Área */}
                       <div className="flex flex-col items-center w-1/3">
-                        <div className="bg-emerald-50 border border-emerald-200 p-2 rounded-lg w-full text-center mb-3 shadow-sm">
+                        <div 
+                          className="bg-emerald-50 border border-emerald-200 p-2 rounded-lg w-full text-center mb-3 shadow-sm cursor-pointer hover:bg-emerald-100 transition flex flex-col items-center"
+                          onClick={() => triggerSymbolUpload("Abandono de Área Noturno")}
+                          title={canEditPage ? "Clique para alterar o símbolo" : ""}
+                        >
+                          {brigadeSymbols["Abandono de Área Noturno"] && <img src={brigadeSymbols["Abandono de Área Noturno"]} alt="Símbolo" className="w-6 h-6 object-contain mb-1" />}
                           <h4 className="font-bold text-emerald-800 text-xs">Abandono de Área</h4>
                         </div>
                         <div className="space-y-2 w-full">
                           {brigade.filter(m => (m.brigade_role === "Abandono de Área" || m.brigade_role === "Evacuação") && (m.shift && (m.shift.toLowerCase().includes('noite') || m.shift.toLowerCase().includes('noturno') || m.shift.toLowerCase().includes('3º turno')))).map(m => (
                             <div key={m.id} className="bg-white border border-gray-200 p-2 rounded-lg text-center shadow-sm">
+                              <img src={m.photo_url || "https://picsum.photos/seed/user/100/100"} alt={m.name} className="w-8 h-8 rounded-full mx-auto mb-1 object-cover border border-gray-300" />
                               <p className="font-bold text-gray-900 text-xs">{m.name}</p>
                               <p className="text-[10px] text-gray-500">{m.sector}</p>
                             </div>

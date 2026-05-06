@@ -23,6 +23,7 @@ import Ocorrencias from "./pages/Ocorrencias";
 import Exames from "./pages/Exames";
 import Normas from "./pages/Normas";
 import PermissaoTrabalho from "./pages/PermissaoTrabalho";
+import OrdensServico from "./pages/OrdensServico";
 import Laudos from "./pages/Laudos";
 import ProdutosQuimicos from "./pages/ProdutosQuimicos";
 
@@ -99,6 +100,7 @@ export default function App() {
           <Route path="exames" element={<Exames />} />
           <Route path="normas" element={<Normas />} />
           <Route path="permissao-trabalho" element={<PermissaoTrabalho />} />
+          <Route path="ordens-servico" element={<OrdensServico />} />
           <Route path="agenda" element={<Agenda />} />
           <Route path="configuracoes" element={<Configuracoes />} />
           <Route path="usuarios" element={<Usuarios />} />

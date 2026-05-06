@@ -202,6 +202,12 @@ export default function Configuracoes() {
     }
   };
 
+  // State for import duplicate modal
+  const [importPreview, setImportPreview] = useState<{
+    employees: any[]; ppes: any[]; occurrences: any[]; exams: any[];
+    dupEmployees: string[]; dupPPEs: string[];
+  } | null>(null);
+
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -212,28 +218,17 @@ export default function Configuracoes() {
       try {
         const bstr = evt.target?.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
-        
-        const payload: any = {};
 
-        // Helper to find sheet ignoring case and accents
-        const findSheet = (names: string[]) => {
-          const normalize = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-          const targetNames = names.map(normalize);
-          for (const sheetName of wb.SheetNames) {
-            if (targetNames.includes(normalize(sheetName))) {
-              return wb.Sheets[sheetName];
-            }
-          }
-          return null;
+        const normalizeStr = (s: any) => {
+          if (typeof s !== 'string') return '';
+          return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, ' ').trim();
         };
 
         const formatDate = (rawDate: any) => {
           if (!rawDate) return new Date().toISOString().split('T')[0];
           if (typeof rawDate === 'string' && rawDate.includes('/')) {
             const parts = rawDate.split('/');
-            if (parts.length === 3) {
-              return `${parts[2]}-${parts[1]}-${parts[0]}`;
-            }
+            if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
           } else if (typeof rawDate === 'number') {
             const date = new Date(Math.round((rawDate - 25569) * 86400 * 1000));
             return date.toISOString().split('T')[0];
@@ -241,189 +236,142 @@ export default function Configuracoes() {
           return String(rawDate);
         };
 
-        const extractDataFromSheet = (sheet: any, expectedHeaders: string[]) => {
+        const extractDataFromSheet = (sheet: any) => {
           const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false }) as any[][];
-          if (!rows || rows.length === 0) return [];
-
-          const normalizeStr = (s: any) => {
-            if (typeof s !== 'string') return '';
-            return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, ' ').trim();
-          };
+          if (!rows || rows.length === 0) return { headers: [] as string[], data: [] as any[] };
 
           let headerRowIndex = -1;
           let headers: string[] = [];
-
           for (let i = 0; i < Math.min(rows.length, 20); i++) {
             const row = rows[i];
-            if (!Array.isArray(row)) continue;
-            
-            const normalizedRow = row.map(normalizeStr);
-            const hasExpectedHeader = expectedHeaders.some(h => normalizedRow.includes(h));
-            
-            if (hasExpectedHeader) {
-              headerRowIndex = i;
-              headers = normalizedRow;
-              break;
-            }
+            if (!Array.isArray(row) || row.length < 2) continue;
+            const nr = row.map(normalizeStr);
+            const nonEmpty = nr.filter(h => h.length > 0).length;
+            if (nonEmpty >= 2) { headerRowIndex = i; headers = nr; break; }
           }
-
-          if (headerRowIndex === -1) {
-            for (let i = 0; i < rows.length; i++) {
-              if (Array.isArray(rows[i]) && rows[i].length > 0) {
-                 headerRowIndex = i;
-                 headers = rows[i].map(normalizeStr);
-                 break;
-              }
-            }
-          }
-
-          if (headerRowIndex === -1) return [];
+          if (headerRowIndex === -1) return { headers: [], data: [] };
 
           const parsedData = [];
           for (let i = headerRowIndex + 1; i < rows.length; i++) {
             const row = rows[i];
             if (!Array.isArray(row) || row.length === 0) continue;
-            if (row.every(cell => cell === undefined || cell === null || cell === '')) continue;
-
+            if (row.every(c => c === undefined || c === null || c === '')) continue;
             const rowObj: any = {};
             for (let j = 0; j < headers.length; j++) {
-              const header = headers[j];
-              if (header) {
-                rowObj[header] = row[j];
-              }
+              if (headers[j]) rowObj[headers[j]] = row[j];
             }
             parsedData.push(rowObj);
           }
-
-          return parsedData;
+          return { headers, data: parsedData };
         };
 
-        const mapEmployees = (data: any[]) => {
-          return data
-            .filter(normRow => normRow['nome do colaborador'] || normRow['nome'] || normRow['name'] || normRow['funcionario'])
-            .map(normRow => {
-              return {
-                name: normRow['nome do colaborador'] || normRow['nome'] || normRow['name'] || normRow['funcionario'],
-                cpf: normRow['cpf'] ? String(normRow['cpf']).replace(/[^\d.-]/g, '') : '000.000.000-00',
-                role: normRow['funcao'] || normRow['cargo'] || normRow['role'] || 'Não definido',
-                sector: normRow['setor'] || normRow['sector'] || 'Não definido',
-                shift: normRow['turno'] || normRow['shift'] || 'Comercial',
-                gender: normRow['sexo'] || normRow['genero'] || 'Masculino',
-                admission_date: formatDate(normRow['data de admissao'] || normRow['admissao'] || normRow['admission_date']),
-              };
+        // Detect sheet type by headers
+        const EPI_HEADERS = ['descricao do epi', 'epi', 'nome do epi', 'equipamento', 'numero do ca', 'ca'];
+        const EMP_HEADERS = ['nome do colaborador', 'nome', 'cpf', 'funcao', 'cargo', 'funcionario'];
+        const OCC_HEADERS = ['tipo', 'lesao', 'data do acidente', 'parte do corpo'];
+        const EXAM_HEADERS = ['tipo de exame', 'data do exame', 'proximo exame', 'periodicidade', 'aso'];
+
+        const allEmployees: any[] = [];
+        const allPPEs: any[] = [];
+        const allOccurrences: any[] = [];
+        const allExams: any[] = [];
+
+        // Scan ALL sheets
+        for (const sheetName of wb.SheetNames) {
+          const { headers, data } = extractDataFromSheet(wb.Sheets[sheetName]);
+          if (data.length === 0) continue;
+
+          const epiScore = EPI_HEADERS.filter(h => headers.some(hh => hh.includes(h))).length;
+          const empScore = EMP_HEADERS.filter(h => headers.some(hh => hh.includes(h))).length;
+          const occScore = OCC_HEADERS.filter(h => headers.some(hh => hh.includes(h))).length;
+          const examScore = EXAM_HEADERS.filter(h => headers.some(hh => hh.includes(h))).length;
+
+          const maxScore = Math.max(epiScore, empScore, occScore, examScore);
+          if (maxScore < 2) continue;
+
+          if (maxScore === epiScore) {
+            data.filter(r => r['descricao do epi'] || r['epi'] || r['nome do epi'] || r['nome'] || r['equipamento']).forEach(r => {
+              allPPEs.push({
+                name: r['descricao do epi'] || r['epi'] || r['nome do epi'] || r['nome'] || r['equipamento'],
+                ca: r['numero do ca'] || r['ca'] ? String(r['numero do ca'] || r['ca']) : '00000',
+                price: parseFloat(String(r['preco unitario'] || r['preco'] || r['valor'] || '0').replace('R$','').replace(',','.')) || 0,
+                stock: parseInt(String(r['estoque atual'] || r['estoque'] || r['quantidade'] || r['quant'] || '0')) || 0,
+                max_days: parseInt(String(r['prazo maximo'] || r['prazo original'] || r['max_days'] || '0')) || null,
+                adjusted_days: parseInt(String(r['prazo ajustado'] || r['adjusted_days'] || '0')) || null,
+                cleaning_instructions: r['limpeza'] || r['instrucoes de limpeza'] || r['forma de limpeza'] || null
+              });
             });
-        };
-
-        const mapPPEs = (data: any[]) => {
-          return data
-            .filter(normRow => normRow['epi'] || normRow['nome'] || normRow['nome do epi'] || normRow['equipamento'])
-            .map(normRow => {
-              return {
-                name: normRow['epi'] || normRow['nome'] || normRow['nome do epi'] || normRow['equipamento'],
-                ca: normRow['ca'] ? String(normRow['ca']) : '00000',
-                price: parseFloat(String(normRow['preco'] || normRow['valor'] || '0').replace('R$', '').replace(',', '.')) || 0,
-                stock: parseInt(String(normRow['estoque'] || normRow['quantidade'] || '0')) || 0,
-                max_days: parseInt(String(normRow['prazo maximo'] || normRow['prazo original'] || normRow['max_days'] || '0')) || null,
-                adjusted_days: parseInt(String(normRow['prazo ajustado'] || normRow['adjusted_days'] || '0')) || null,
-                cleaning_instructions: normRow['limpeza'] || normRow['instrucoes de limpeza'] || normRow['forma de limpeza'] || null
-              };
+          } else if (maxScore === empScore) {
+            data.filter(r => r['nome do colaborador'] || r['nome'] || r['name'] || r['funcionario']).forEach(r => {
+              allEmployees.push({
+                name: r['nome do colaborador'] || r['nome'] || r['name'] || r['funcionario'],
+                cpf: r['cpf'] ? String(r['cpf']).replace(/[^\d.-]/g, '') : '000.000.000-00',
+                role: r['funcao'] || r['cargo'] || r['role'] || 'Não definido',
+                sector: r['setor'] || r['sector'] || 'Não definido',
+                shift: r['turno'] || r['shift'] || 'Comercial',
+                gender: r['sexo'] || r['genero'] || 'Masculino',
+                admission_date: formatDate(r['data de admissao'] || r['admissao'] || r['admission_date']),
+              });
             });
-        };
-
-        const mapOccurrences = (data: any[]) => {
-          return data
-            .filter(normRow => normRow['tipo'] && normRow['data'])
-            .map(normRow => {
-              return {
-                type: normRow['tipo'] || 'Acidente',
-                employee_id: parseInt(String(normRow['id do colaborador'] || normRow['id do funcionario'] || normRow['employee_id'] || '0')) || null, 
-                date: formatDate(normRow['data'] || normRow['data do acidente']),
-                time: normRow['hora'] || normRow['horario'] || '00:00',
-                location: normRow['local'] || normRow['localizacao'] || '-',
-                sector: normRow['setor'] || '-',
-                description: normRow['descricao'] || '-',
-                injury: normRow['lesao'] || '-',
-                body_part: normRow['parte do corpo'] || '-',
-                days_away: parseInt(String(normRow['dias de afastamento'] || normRow['dias afastado'] || '0')) || 0,
-                status: normRow['status'] || 'Registrado'
-              };
+          } else if (maxScore === occScore) {
+            data.filter(r => r['tipo'] && r['data']).forEach(r => {
+              allOccurrences.push({
+                type: r['tipo'] || 'Acidente',
+                date: formatDate(r['data'] || r['data do acidente']),
+                time: r['hora'] || r['horario'] || '00:00',
+                location: r['local'] || r['localizacao'] || '-',
+                sector: r['setor'] || '-',
+                description: r['descricao'] || '-',
+                injury: r['lesao'] || '-',
+                body_part: r['parte do corpo'] || '-',
+                days_away: parseInt(String(r['dias de afastamento'] || r['dias afastado'] || '0')) || 0,
+                status: r['status'] || 'Registrado'
+              });
             });
-        };
-
-        const mapExams = (data: any[]) => {
-          return data
-            .filter(normRow => normRow['tipo'] || normRow['tipo de exame'])
-            .map(normRow => {
-              return {
-                employee_id: parseInt(String(normRow['id do colaborador'] || normRow['id do funcionario'] || normRow['employee_id'] || '0')) || null,
-                type: normRow['tipo'] || normRow['tipo de exame'] || 'Periódico',
-                specific_exams: normRow['exames especificos'] || normRow['exames'] || '-',
-                periodicity: normRow['periodicidade'] || '12 meses',
-                exam_date: formatDate(normRow['data do exame'] || normRow['data']),
-                next_exam_date: formatDate(normRow['proximo exame'] || normRow['vencimento']),
-                status: normRow['status'] || 'Realizado'
-              };
+          } else if (maxScore === examScore) {
+            data.filter(r => r['tipo'] || r['tipo de exame']).forEach(r => {
+              allExams.push({
+                type: r['tipo'] || r['tipo de exame'] || 'Periódico',
+                specific_exams: r['exames especificos'] || r['exames'] || '-',
+                periodicity: r['periodicidade'] || '12 meses',
+                exam_date: formatDate(r['data do exame'] || r['data']),
+                next_exam_date: formatDate(r['proximo exame'] || r['vencimento']),
+                status: r['status'] || 'Realizado'
+              });
             });
-        };
-
-        const employeesSheet = findSheet(["Funcionarios", "Colaboradores"]);
-        if (employeesSheet) {
-          const raw = extractDataFromSheet(employeesSheet, ['nome', 'nome do colaborador', 'cpf', 'funcao', 'cargo']);
-          payload.employees = mapEmployees(raw);
+          }
         }
 
-        const ppesSheet = findSheet(["EPIs", "EPI"]);
-        if (ppesSheet) {
-          const raw = extractDataFromSheet(ppesSheet, ['epi', 'nome', 'ca', 'nome do epi']);
-          payload.ppes = mapPPEs(raw);
+        // Check for duplicates
+        const dupEmployees: string[] = [];
+        const dupPPEs: string[] = [];
+        if (allEmployees.length > 0) {
+          const { data: existing } = await supabase.from('employees').select('name');
+          const existingNames = new Set((existing || []).map((e: any) => e.name?.toLowerCase()));
+          allEmployees.forEach(emp => { if (existingNames.has(emp.name?.toLowerCase())) dupEmployees.push(emp.name); });
+        }
+        if (allPPEs.length > 0) {
+          const { data: existing } = await supabase.from('ppes').select('name, ca');
+          const existingKeys = new Set((existing || []).map((e: any) => `${e.name?.toLowerCase()}|${e.ca}`));
+          allPPEs.forEach(ppe => { if (existingKeys.has(`${ppe.name?.toLowerCase()}|${ppe.ca}`)) dupPPEs.push(ppe.name); });
         }
 
-        const occurrencesSheet = findSheet(["Ocorrencias", "Acidentes"]);
-        if (occurrencesSheet) {
-          const raw = extractDataFromSheet(occurrencesSheet, ['tipo', 'id do colaborador', 'data', 'lesao']);
-          payload.occurrences = mapOccurrences(raw);
+        const totalFound = allEmployees.length + allPPEs.length + allOccurrences.length + allExams.length;
+        if (totalFound === 0) {
+          alert("Nenhum dado reconhecido em nenhuma aba. Verifique os cabeçalhos da planilha.");
+          setImporting(false);
+          return;
         }
 
-        const examsSheet = findSheet(["Exames", "ASO", "ASOs"]);
-        if (examsSheet) {
-          const raw = extractDataFromSheet(examsSheet, ['tipo', 'id do colaborador', 'data do exame']);
-          payload.exams = mapExams(raw);
+        const hasDuplicates = dupEmployees.length > 0 || dupPPEs.length > 0;
+        if (hasDuplicates) {
+          setImportPreview({ employees: allEmployees, ppes: allPPEs, occurrences: allOccurrences, exams: allExams, dupEmployees, dupPPEs });
+          setImporting(false);
+          return;
         }
 
-        let importedCount = 0;
-        let hasError = false;
-
-        if (payload.employees && payload.employees.length > 0) {
-          const { error } = await supabase.from('employees').insert(payload.employees);
-          if (error) { console.error("Erro funcionários:", error); hasError = true; }
-          else importedCount += payload.employees.length;
-        }
-        
-        if (payload.ppes && payload.ppes.length > 0) {
-          const { error } = await supabase.from('ppes').insert(payload.ppes);
-          if (error) { console.error("Erro EPIs:", error); hasError = true; }
-          else importedCount += payload.ppes.length;
-        }
-
-        if (payload.occurrences && payload.occurrences.length > 0) {
-          const { error } = await supabase.from('occurrences').insert(payload.occurrences);
-          if (error) { console.error("Erro ocorrências:", error); hasError = true; }
-          else importedCount += payload.occurrences.length;
-        }
-
-        if (payload.exams && payload.exams.length > 0) {
-          const { error } = await supabase.from('exams').insert(payload.exams);
-          if (error) { console.error("Erro exames:", error); hasError = true; }
-          else importedCount += payload.exams.length;
-        }
-
-        if (importedCount > 0) {
-          alert(`Importação concluída! ${importedCount} registros importados com sucesso.${hasError ? ' Alguns registros apresentaram erro e não foram importados.' : ''}`);
-          window.location.reload();
-        } else {
-          alert("Nenhum dado importado. Verifique o formato da planilha ou se há erros no console.");
-        }
-        
+        // No duplicates, insert directly
+        await executeImport(allEmployees, allPPEs, allOccurrences, allExams, 'ignore');
       } catch (error) {
         console.error(error);
         alert("Erro ao processar o arquivo Excel.");
@@ -432,6 +380,100 @@ export default function Configuracoes() {
       }
     };
     reader.readAsBinaryString(file);
+    e.target.value = '';
+  };
+
+  const executeImport = async (employees: any[], ppes: any[], occurrences: any[], exams: any[], duplicateAction: 'replace' | 'ignore') => {
+    setImporting(true);
+    let importedCount = 0;
+    let hasError = false;
+
+    try {
+      // Employees
+      if (employees.length > 0) {
+        if (duplicateAction === 'replace') {
+          const { data: existing } = await supabase.from('employees').select('id, name');
+          const existingMap = new Map((existing || []).map((e: any) => [e.name?.toLowerCase(), e.id]));
+          for (const emp of employees) {
+            const existId = existingMap.get(emp.name?.toLowerCase());
+            if (existId) {
+              const { error } = await supabase.from('employees').update(emp).eq('id', existId);
+              if (error) { console.error("Erro atualizar funcionário:", error); hasError = true; }
+              else importedCount++;
+            } else {
+              const { error } = await supabase.from('employees').insert([emp]);
+              if (error) { console.error("Erro inserir funcionário:", error); hasError = true; }
+              else importedCount++;
+            }
+          }
+        } else {
+          const { data: existing } = await supabase.from('employees').select('name');
+          const existingNames = new Set((existing || []).map((e: any) => e.name?.toLowerCase()));
+          const newOnes = employees.filter(emp => !existingNames.has(emp.name?.toLowerCase()));
+          if (newOnes.length > 0) {
+            const { error } = await supabase.from('employees').insert(newOnes);
+            if (error) { console.error("Erro funcionários:", error); hasError = true; }
+            else importedCount += newOnes.length;
+          }
+        }
+      }
+
+      // PPEs
+      if (ppes.length > 0) {
+        if (duplicateAction === 'replace') {
+          const { data: existing } = await supabase.from('ppes').select('id, name, ca');
+          const existingMap = new Map((existing || []).map((e: any) => [`${e.name?.toLowerCase()}|${e.ca}`, e.id]));
+          for (const ppe of ppes) {
+            const existId = existingMap.get(`${ppe.name?.toLowerCase()}|${ppe.ca}`);
+            if (existId) {
+              const { error } = await supabase.from('ppes').update(ppe).eq('id', existId);
+              if (error) { console.error("Erro atualizar EPI:", error); hasError = true; }
+              else importedCount++;
+            } else {
+              const { error } = await supabase.from('ppes').insert([ppe]);
+              if (error) { console.error("Erro inserir EPI:", error); hasError = true; }
+              else importedCount++;
+            }
+          }
+        } else {
+          const { data: existing } = await supabase.from('ppes').select('name, ca');
+          const existingKeys = new Set((existing || []).map((e: any) => `${e.name?.toLowerCase()}|${e.ca}`));
+          const newOnes = ppes.filter(p => !existingKeys.has(`${p.name?.toLowerCase()}|${p.ca}`));
+          if (newOnes.length > 0) {
+            const { error } = await supabase.from('ppes').insert(newOnes);
+            if (error) { console.error("Erro EPIs:", error); hasError = true; }
+            else importedCount += newOnes.length;
+          }
+        }
+      }
+
+      // Occurrences (no duplicate check)
+      if (occurrences.length > 0) {
+        const { error } = await supabase.from('occurrences').insert(occurrences);
+        if (error) { console.error("Erro ocorrências:", error); hasError = true; }
+        else importedCount += occurrences.length;
+      }
+
+      // Exams (no duplicate check)
+      if (exams.length > 0) {
+        const { error } = await supabase.from('exams').insert(exams);
+        if (error) { console.error("Erro exames:", error); hasError = true; }
+        else importedCount += exams.length;
+      }
+
+      if (importedCount > 0) {
+        alert(`Importação concluída! ${importedCount} registros processados.${hasError ? ' Alguns registros apresentaram erro.' : ''}`);
+        window.location.reload();
+      } else {
+        alert("Nenhum dado novo importado.");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Erro durante a importação.");
+    } finally {
+      setImporting(false);
+      setImportPreview(null);
+    }
   };
 
   if (!isMaster) {
@@ -667,6 +709,68 @@ export default function Configuracoes() {
                 disabled={saving}
               >
                 {saving ? "Restaurando..." : "Avançar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Duplicate Modal */}
+      {importPreview && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+            <div className="flex items-center gap-3 text-orange-600 mb-4">
+              <Upload className="w-8 h-8" />
+              <h3 className="text-xl font-bold">Dados Duplicados Encontrados</h3>
+            </div>
+            <div className="text-sm text-gray-700 space-y-3 mb-6">
+              <p>A planilha contém dados que já existem no sistema:</p>
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 max-h-48 overflow-y-auto space-y-2">
+                {importPreview.employees.length > 0 && (
+                  <p>📋 <strong>{importPreview.employees.length}</strong> funcionários encontrados ({importPreview.dupEmployees.length} duplicados)</p>
+                )}
+                {importPreview.ppes.length > 0 && (
+                  <p>🛡️ <strong>{importPreview.ppes.length}</strong> EPIs encontrados ({importPreview.dupPPEs.length} duplicados)</p>
+                )}
+                {importPreview.occurrences.length > 0 && (
+                  <p>⚠️ <strong>{importPreview.occurrences.length}</strong> ocorrências</p>
+                )}
+                {importPreview.exams.length > 0 && (
+                  <p>🩺 <strong>{importPreview.exams.length}</strong> exames</p>
+                )}
+                {importPreview.dupPPEs.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-gray-200">
+                    <p className="font-medium text-gray-900 mb-1">EPIs duplicados:</p>
+                    {importPreview.dupPPEs.slice(0, 10).map((n, i) => (
+                      <p key={i} className="text-xs text-gray-500 truncate">• {n}</p>
+                    ))}
+                    {importPreview.dupPPEs.length > 10 && <p className="text-xs text-gray-400">...e mais {importPreview.dupPPEs.length - 10}</p>}
+                  </div>
+                )}
+              </div>
+              <p className="font-medium">Como deseja tratar os dados duplicados?</p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => executeImport(importPreview.employees, importPreview.ppes, importPreview.occurrences, importPreview.exams, 'replace')}
+                className="w-full px-4 py-2.5 bg-orange-600 text-white hover:bg-orange-700 rounded-lg font-medium transition"
+                disabled={importing}
+              >
+                {importing ? "Importando..." : "🔄 Substituir Duplicados"}
+              </button>
+              <button
+                onClick={() => executeImport(importPreview.employees, importPreview.ppes, importPreview.occurrences, importPreview.exams, 'ignore')}
+                className="w-full px-4 py-2.5 bg-blue-600 text-white hover:bg-blue-700 rounded-lg font-medium transition"
+                disabled={importing}
+              >
+                {importing ? "Importando..." : "⏭️ Ignorar Duplicados (importar apenas novos)"}
+              </button>
+              <button
+                onClick={() => setImportPreview(null)}
+                className="w-full px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition"
+                disabled={importing}
+              >
+                Cancelar
               </button>
             </div>
           </div>

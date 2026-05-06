@@ -236,109 +236,91 @@ export default function Configuracoes() {
           return String(rawDate);
         };
 
-        const extractDataFromSheet = (sheet: any) => {
-          const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false }) as any[][];
-          if (!rows || rows.length === 0) return { headers: [] as string[], data: [] as any[] };
+        const EPI_KEYWORDS = ['descricao', 'epi', 'equipamento', 'ca', 'fabricante', 'estoque', 'preco'];
+        const EMP_KEYWORDS = ['nome', 'colaborador', 'cpf', 'funcao', 'cargo', 'admissao'];
+        const ALL_KEYWORDS = [...EPI_KEYWORDS, ...EMP_KEYWORDS];
 
-          let headerRowIndex = -1;
-          let headers: string[] = [];
-          for (let i = 0; i < Math.min(rows.length, 20); i++) {
+        const findBestHeaderRow = (rows: any[][]) => {
+          let bestIndex = -1;
+          let maxMatches = 0;
+          for (let i = 0; i < Math.min(rows.length, 30); i++) {
             const row = rows[i];
-            if (!Array.isArray(row) || row.length < 2) continue;
+            if (!Array.isArray(row)) continue;
             const nr = row.map(normalizeStr);
-            const nonEmpty = nr.filter(h => h.length > 0).length;
-            if (nonEmpty >= 2) { headerRowIndex = i; headers = nr; break; }
-          }
-          if (headerRowIndex === -1) return { headers: [], data: [] };
-
-          const parsedData = [];
-          for (let i = headerRowIndex + 1; i < rows.length; i++) {
-            const row = rows[i];
-            if (!Array.isArray(row) || row.length === 0) continue;
-            if (row.every(c => c === undefined || c === null || c === '')) continue;
-            const rowObj: any = {};
-            for (let j = 0; j < headers.length; j++) {
-              if (headers[j]) rowObj[headers[j]] = row[j];
+            const matches = nr.filter(h => ALL_KEYWORDS.some(k => h.includes(k))).length;
+            if (matches > maxMatches) {
+              maxMatches = matches;
+              bestIndex = i;
             }
-            parsedData.push(rowObj);
           }
-          return { headers, data: parsedData };
+          return bestIndex;
         };
 
-        // Detect sheet type by headers
-        const EPI_HEADERS = ['descricao do epi', 'epi', 'nome do epi', 'equipamento', 'numero do ca', 'ca'];
-        const EMP_HEADERS = ['nome do colaborador', 'nome', 'cpf', 'funcao', 'cargo', 'funcionario'];
-        const OCC_HEADERS = ['tipo', 'lesao', 'data do acidente', 'parte do corpo'];
-        const EXAM_HEADERS = ['tipo de exame', 'data do exame', 'proximo exame', 'periodicidade', 'aso'];
+        const getColValue = (rowObj: any, keywords: string[]) => {
+          const keys = Object.keys(rowObj);
+          for (const kw of keywords) {
+            const match = keys.find(k => k.includes(kw));
+            if (match) return rowObj[match];
+          }
+          return null;
+        };
 
         const allEmployees: any[] = [];
         const allPPEs: any[] = [];
         const allOccurrences: any[] = [];
         const allExams: any[] = [];
 
-        // Scan ALL sheets
         for (const sheetName of wb.SheetNames) {
-          const { headers, data } = extractDataFromSheet(wb.Sheets[sheetName]);
-          if (data.length === 0) continue;
+          const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, raw: false }) as any[][];
+          if (!rows || rows.length === 0) continue;
 
-          const epiScore = EPI_HEADERS.filter(h => headers.some(hh => hh.includes(h))).length;
-          const empScore = EMP_HEADERS.filter(h => headers.some(hh => hh.includes(h))).length;
-          const occScore = OCC_HEADERS.filter(h => headers.some(hh => hh.includes(h))).length;
-          const examScore = EXAM_HEADERS.filter(h => headers.some(hh => hh.includes(h))).length;
+          const headerRowIndex = findBestHeaderRow(rows);
+          if (headerRowIndex === -1) continue;
 
-          const maxScore = Math.max(epiScore, empScore, occScore, examScore);
-          if (maxScore < 2) continue;
+          const headers = rows[headerRowIndex].map(normalizeStr);
+          const dataRows = [];
+          for (let i = headerRowIndex + 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (!Array.isArray(row) || row.every(c => !c)) continue;
+            const obj: any = {};
+            headers.forEach((h, idx) => { if (h) obj[h] = row[idx]; });
+            dataRows.push(obj);
+          }
 
-          if (maxScore === epiScore) {
-            data.filter(r => r['descricao do epi'] || r['epi'] || r['nome do epi'] || r['nome'] || r['equipamento']).forEach(r => {
-              allPPEs.push({
-                name: r['descricao do epi'] || r['epi'] || r['nome do epi'] || r['nome'] || r['equipamento'],
-                ca: r['numero do ca'] || r['ca'] ? String(r['numero do ca'] || r['ca']) : '00000',
-                price: parseFloat(String(r['preco unitario'] || r['preco'] || r['valor'] || '0').replace('R$','').replace(',','.')) || 0,
-                stock: parseInt(String(r['estoque atual'] || r['estoque'] || r['quantidade'] || r['quant'] || '0')) || 0,
-                max_days: parseInt(String(r['prazo maximo'] || r['prazo original'] || r['max_days'] || '0')) || null,
-                adjusted_days: parseInt(String(r['prazo ajustado'] || r['adjusted_days'] || '0')) || null,
-                cleaning_instructions: r['limpeza'] || r['instrucoes de limpeza'] || r['forma de limpeza'] || null,
-                manufacturer: r['fabricante'] || r['marca'] || r['manufacturer'] || null
-              });
+          const epiScore = EPI_KEYWORDS.filter(k => headers.some(h => h.includes(k))).length;
+          const empScore = EMP_KEYWORDS.filter(k => headers.some(h => h.includes(k))).length;
+
+          if (epiScore >= 3 && epiScore >= empScore) {
+            dataRows.forEach(r => {
+              const name = getColValue(r, ['descricao', 'nome do epi', 'equipamento', 'epi']);
+              const ca = getColValue(r, ['ca', 'numero do ca']);
+              if (name && String(name).length > 2) {
+                allPPEs.push({
+                  name: String(name),
+                  ca: ca ? String(ca).replace(/\D/g, '') : '00000',
+                  price: parseFloat(String(getColValue(r, ['preco', 'valor']) || '0').replace('R$','').replace(',','.')) || 0,
+                  stock: parseInt(String(getColValue(r, ['estoque', 'quantidade', 'quant']) || '0')) || 0,
+                  manufacturer: getColValue(r, ['fabricante', 'marca']),
+                  max_days: parseInt(String(getColValue(r, ['prazo maximo', 'prazo original']) || '0')) || null,
+                  adjusted_days: parseInt(String(getColValue(r, ['prazo ajustado']) || '0')) || null,
+                  cleaning_instructions: getColValue(r, ['limpeza', 'conservacao'])
+                });
+              }
             });
-          } else if (maxScore === empScore) {
-            data.filter(r => r['nome do colaborador'] || r['nome'] || r['name'] || r['funcionario']).forEach(r => {
-              allEmployees.push({
-                name: r['nome do colaborador'] || r['nome'] || r['name'] || r['funcionario'],
-                cpf: r['cpf'] ? String(r['cpf']).replace(/[^\d.-]/g, '') : '000.000.000-00',
-                role: r['funcao'] || r['cargo'] || r['role'] || 'Não definido',
-                sector: r['setor'] || r['sector'] || 'Não definido',
-                shift: r['turno'] || r['shift'] || 'Comercial',
-                gender: r['sexo'] || r['genero'] || 'Masculino',
-                admission_date: formatDate(r['data de admissao'] || r['admissao'] || r['admission_date']),
-              });
-            });
-          } else if (maxScore === occScore) {
-            data.filter(r => r['tipo'] && r['data']).forEach(r => {
-              allOccurrences.push({
-                type: r['tipo'] || 'Acidente',
-                date: formatDate(r['data'] || r['data do acidente']),
-                time: r['hora'] || r['horario'] || '00:00',
-                location: r['local'] || r['localizacao'] || '-',
-                sector: r['setor'] || '-',
-                description: r['descricao'] || '-',
-                injury: r['lesao'] || '-',
-                body_part: r['parte do corpo'] || '-',
-                days_away: parseInt(String(r['dias de afastamento'] || r['dias afastado'] || '0')) || 0,
-                status: r['status'] || 'Registrado'
-              });
-            });
-          } else if (maxScore === examScore) {
-            data.filter(r => r['tipo'] || r['tipo de exame']).forEach(r => {
-              allExams.push({
-                type: r['tipo'] || r['tipo de exame'] || 'Periódico',
-                specific_exams: r['exames especificos'] || r['exames'] || '-',
-                periodicity: r['periodicidade'] || '12 meses',
-                exam_date: formatDate(r['data do exame'] || r['data']),
-                next_exam_date: formatDate(r['proximo exame'] || r['vencimento']),
-                status: r['status'] || 'Realizado'
-              });
+          } else if (empScore >= 3) {
+            dataRows.forEach(r => {
+              const name = getColValue(r, ['nome', 'colaborador', 'funcionario']);
+              if (name && String(name).length > 2) {
+                allEmployees.push({
+                  name: String(name),
+                  cpf: String(getColValue(r, ['cpf']) || '').replace(/[^\d.-]/g, '') || '000.000.000-00',
+                  role: getColValue(r, ['funcao', 'cargo']) || 'Não definido',
+                  sector: getColValue(r, ['setor']) || 'Não definido',
+                  shift: getColValue(r, ['turno']) || 'Comercial',
+                  gender: getColValue(r, ['sexo', 'genero']) || 'Masculino',
+                  admission_date: formatDate(getColValue(r, ['admissao', 'data de admissao'])),
+                });
+              }
             });
           }
         }
@@ -359,7 +341,7 @@ export default function Configuracoes() {
 
         const totalFound = allEmployees.length + allPPEs.length + allOccurrences.length + allExams.length;
         if (totalFound === 0) {
-          alert("Nenhum dado reconhecido em nenhuma aba. Verifique os cabeçalhos da planilha.");
+          alert("Nenhum dado reconhecido em nenhuma aba. Verifique se os cabeçalhos estão na planilha.");
           setImporting(false);
           return;
         }
@@ -371,7 +353,6 @@ export default function Configuracoes() {
           return;
         }
 
-        // No duplicates, insert directly
         await executeImport(allEmployees, allPPEs, allOccurrences, allExams, 'ignore');
       } catch (error) {
         console.error(error);

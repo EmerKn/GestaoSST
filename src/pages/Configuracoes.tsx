@@ -298,7 +298,8 @@ export default function Configuracoes() {
                 stock: parseInt(String(r['estoque atual'] || r['estoque'] || r['quantidade'] || r['quant'] || '0')) || 0,
                 max_days: parseInt(String(r['prazo maximo'] || r['prazo original'] || r['max_days'] || '0')) || null,
                 adjusted_days: parseInt(String(r['prazo ajustado'] || r['adjusted_days'] || '0')) || null,
-                cleaning_instructions: r['limpeza'] || r['instrucoes de limpeza'] || r['forma de limpeza'] || null
+                cleaning_instructions: r['limpeza'] || r['instrucoes de limpeza'] || r['forma de limpeza'] || null,
+                manufacturer: r['fabricante'] || r['marca'] || r['manufacturer'] || null
               });
             });
           } else if (maxScore === empScore) {
@@ -426,7 +427,16 @@ export default function Configuracoes() {
           for (const ppe of ppes) {
             const existId = existingMap.get(`${ppe.name?.toLowerCase()}|${ppe.ca}`);
             if (existId) {
-              const { error } = await supabase.from('ppes').update(ppe).eq('id', existId);
+              const { error } = await supabase.from('ppes').update({
+                name: ppe.name,
+                ca: ppe.ca,
+                price: ppe.price,
+                stock: ppe.stock,
+                max_days: ppe.max_days,
+                adjusted_days: ppe.adjusted_days,
+                cleaning_instructions: ppe.cleaning_instructions,
+                manufacturer: ppe.manufacturer
+              }).eq('id', existId);
               if (error) { console.error("Erro atualizar EPI:", error); hasError = true; }
               else importedCount++;
             } else {

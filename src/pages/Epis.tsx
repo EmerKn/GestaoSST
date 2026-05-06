@@ -23,6 +23,7 @@ interface PPE {
   last_purchase_date?: string;
   validity_date?: string;
   commercial_name?: string;
+  manufacturer?: string;
   description?: string;
   complementary_data?: string;
   max_days?: number;
@@ -53,6 +54,7 @@ export default function Epis() {
     last_purchase_date: "",
     validity_date: "",
     commercial_name: "",
+    manufacturer: "",
     description: "",
     complementary_data: "",
     max_days: "",
@@ -115,7 +117,7 @@ export default function Epis() {
     setEditingId(null);
     setFormData({ 
       name: "", ca: "", price: "", photo_url: "", stock: "", 
-      last_purchase_date: "", validity_date: "", commercial_name: "", 
+      last_purchase_date: "", validity_date: "", commercial_name: "", manufacturer: "",
       description: "", complementary_data: "", max_days: "", adjusted_days: "", cleaning_instructions: ""
     });
     setShowModal(true);
@@ -133,6 +135,7 @@ export default function Epis() {
       last_purchase_date: ppe.last_purchase_date || "",
       validity_date: ppe.validity_date || "",
       commercial_name: ppe.commercial_name || "",
+      manufacturer: ppe.manufacturer || "",
       description: ppe.description || "",
       complementary_data: ppe.complementary_data || "",
       max_days: ppe.max_days ? ppe.max_days.toString() : "",
@@ -201,6 +204,7 @@ export default function Epis() {
         last_purchase_date: formData.last_purchase_date || null,
         validity_date: formData.validity_date || null,
         commercial_name: formData.commercial_name || null,
+        manufacturer: formData.manufacturer || null,
         description: formData.description || null,
         complementary_data: formData.complementary_data || null,
         max_days: formData.max_days ? parseInt(formData.max_days, 10) : null,
@@ -409,6 +413,9 @@ export default function Epis() {
             </div>
             <div className="p-4 flex-1 flex flex-col">
               <h3 className="text-lg font-bold text-gray-900 mb-1">{ppe.name}</h3>
+              {ppe.manufacturer && (
+                <p className="text-xs text-gray-500 mb-1 font-medium">Fabricante: {ppe.manufacturer}</p>
+              )}
               <p className="text-emerald-600 font-semibold mb-4">
                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(ppe.price)}
               </p>
@@ -467,6 +474,7 @@ export default function Epis() {
                           <div key={ppe.id} className="flex justify-between items-center p-3 border border-gray-200 rounded-lg hover:border-emerald-500 transition">
                              <div>
                                <div className="font-bold text-sm text-gray-900">{ppe.name} <span className="text-xs font-normal text-gray-500 bg-gray-100 px-1 rounded">CA {ppe.ca}</span></div>
+                               {ppe.manufacturer && <div className="text-[10px] text-gray-400 font-medium uppercase">{ppe.manufacturer}</div>}
                                <div className="text-xs text-gray-500">Estoque: {ppe.stock} un</div>
                              </div>
                              <button onClick={() => handleAddToCart(ppe.id)} className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded hover:bg-emerald-200 transition text-sm font-medium"><Plus className="w-4 h-4"/></button>
@@ -566,10 +574,14 @@ export default function Epis() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Nome Comercial</label>
                     <input type="text" name="commercial_name" value={formData.commercial_name} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg placeholder:text-gray-400" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Fabricante</label>
+                    <input type="text" name="manufacturer" value={formData.manufacturer} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-lg placeholder:text-gray-400" placeholder="Ex: 3M, Vonder..." />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Validade do CA</label>

@@ -234,6 +234,21 @@ export default function Epis() {
     }
   };
 
+  const handleDelete = async (id: number, name: string) => {
+    if (!canEditPage) return;
+    if (!confirm(`Tem certeza que deseja excluir o EPI "${name}"? Esta ação não pode ser desfeita.`)) return;
+
+    try {
+      const { error } = await supabase.from('ppes').delete().eq('id', id);
+      if (error) throw error;
+      alert("EPI excluído com sucesso!");
+      loadPpes();
+    } catch (error) {
+      console.error("Error deleting PPE:", error);
+      alert("Erro ao excluir EPI. Verifique se existem entregas vinculadas a este equipamento.");
+    }
+  };
+
   const handleAddToCart = (ppe_id: number) => {
     setCart(prev => {
       const existing = prev.find(item => item.ppe_id === ppe_id);
@@ -407,8 +422,22 @@ export default function Epis() {
                 referrerPolicy="no-referrer"
                 className="w-full h-full object-cover"
               />
-              <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md text-xs font-bold text-gray-700 shadow-sm">
-                CA: {ppe.ca}
+              <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
+                <div className="bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md text-xs font-bold text-gray-700 shadow-sm">
+                  CA: {ppe.ca}
+                </div>
+                {canEditPage && (
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(ppe.id, ppe.name);
+                    }}
+                    className="p-1.5 bg-white/90 backdrop-blur-sm text-red-600 hover:text-white hover:bg-red-600 rounded-lg shadow-sm transition"
+                    title="Excluir EPI"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
             <div className="p-4 flex-1 flex flex-col">

@@ -950,8 +950,16 @@ export default function Incendio() {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex items-center gap-4">
-            <div className="p-3 bg-red-100 rounded-lg text-red-600">
-              <Flame className="w-6 h-6" />
+            <div 
+              className="p-3 bg-red-100 rounded-lg text-red-600 cursor-pointer hover:bg-red-200 transition overflow-hidden flex items-center justify-center w-12 h-12 shrink-0"
+              onClick={() => triggerSymbolUpload("Combate a Incêndio")}
+              title={canEditPage ? "Clique para alterar o símbolo" : ""}
+            >
+              {brigadeSymbols["Combate a Incêndio"] ? (
+                <img src={brigadeSymbols["Combate a Incêndio"]} alt="Símbolo" className="w-full h-full object-cover rounded-lg" />
+              ) : (
+                <Flame className="w-6 h-6" />
+              )}
             </div>
             <div>
               <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Emergência</p>
@@ -965,8 +973,16 @@ export default function Incendio() {
           </div>
           
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex items-center gap-4">
-            <div className="p-3 bg-blue-100 rounded-lg text-blue-600">
-              <Activity className="w-6 h-6" />
+            <div 
+              className="p-3 bg-blue-100 rounded-lg text-blue-600 cursor-pointer hover:bg-blue-200 transition overflow-hidden flex items-center justify-center w-12 h-12 shrink-0"
+              onClick={() => triggerSymbolUpload("Primeiros Socorros")}
+              title={canEditPage ? "Clique para alterar o símbolo" : ""}
+            >
+              {brigadeSymbols["Primeiros Socorros"] ? (
+                <img src={brigadeSymbols["Primeiros Socorros"]} alt="Símbolo" className="w-full h-full object-cover rounded-lg" />
+              ) : (
+                <Activity className="w-6 h-6" />
+              )}
             </div>
             <div>
               <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Primeiros Socorros</p>
@@ -980,8 +996,16 @@ export default function Incendio() {
           </div>
 
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex items-center gap-4">
-            <div className="p-3 bg-emerald-100 rounded-lg text-emerald-600">
-              <Users className="w-6 h-6" />
+            <div 
+              className="p-3 bg-emerald-100 rounded-lg text-emerald-600 cursor-pointer hover:bg-emerald-200 transition overflow-hidden flex items-center justify-center w-12 h-12 shrink-0"
+              onClick={() => triggerSymbolUpload("Abandono de Área")}
+              title={canEditPage ? "Clique para alterar o símbolo" : ""}
+            >
+              {brigadeSymbols["Abandono de Área"] ? (
+                <img src={brigadeSymbols["Abandono de Área"]} alt="Símbolo" className="w-full h-full object-cover rounded-lg" />
+              ) : (
+                <Users className="w-6 h-6" />
+              )}
             </div>
             <div>
               <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Evacuação</p>
@@ -995,8 +1019,16 @@ export default function Incendio() {
           </div>
 
           <div className="bg-gradient-to-br from-orange-500 to-red-600 p-6 rounded-xl shadow-md flex items-center gap-4 text-white">
-            <div className="p-3 bg-white/20 rounded-lg">
-              <ShieldCheck className="w-6 h-6" />
+            <div 
+              className="p-3 bg-white/20 rounded-lg cursor-pointer hover:bg-white/30 transition overflow-hidden flex items-center justify-center w-12 h-12 shrink-0"
+              onClick={() => triggerSymbolUpload("Coordenador da Brigada")}
+              title={canEditPage ? "Clique para alterar o símbolo" : ""}
+            >
+              {brigadeSymbols["Coordenador da Brigada"] ? (
+                <img src={brigadeSymbols["Coordenador da Brigada"]} alt="Símbolo" className="w-full h-full object-cover rounded-lg" />
+              ) : (
+                <ShieldCheck className="w-6 h-6" />
+              )}
             </div>
             <div>
               <p className="text-sm font-medium text-white/80 uppercase tracking-wider">Brigada de Emergência</p>
@@ -1274,39 +1306,7 @@ export default function Incendio() {
               </div>
             </div>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {brigade.map(member => (
-              <div key={member.id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex items-start gap-4">
-                <img 
-                  src={member.photo_url || "https://picsum.photos/seed/user/100/100"} 
-                  alt={member.name} 
-                  referrerPolicy="no-referrer"
-                  className="w-16 h-16 rounded-full object-cover border-2 border-red-500 p-0.5"
-                />
-                <div>
-                  <h3 className="font-bold text-gray-900">{member.name}</h3>
-                  <p className="text-sm text-gray-500 mb-2">{member.role} • {member.sector}</p>
-                  <span className={clsx(
-                    "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
-                    (member.brigade_role === "Combate a Incêndio" || member.brigade_role === "Emergência") ? "bg-red-100 text-red-800" :
-                    member.brigade_role === "Primeiros Socorros" ? "bg-emerald-100 text-blue-800" :
-                    member.brigade_role.includes("Líder") ? "bg-purple-100 text-purple-800" :
-                    "bg-orange-100 text-orange-800"
-                  )}>
-                    {member.brigade_role}
-                  </span>
-                  <p className="text-xs text-gray-400 mt-2">Turno: {member.shift}</p>
-                </div>
-              </div>
-            ))}
-            {brigade.length === 0 && (
-              <div className="col-span-full p-8 text-center text-gray-500 bg-white rounded-xl border border-gray-200 border-dashed">
-                Nenhum brigadista cadastrado.
-              </div>
-            )}
-          </div>
-        )}
+        ) : null}
       </section>
 
       {/* Equipment Summary Section */}
